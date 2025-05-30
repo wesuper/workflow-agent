@@ -1,0 +1,16 @@
+# Whitelist for users allowed to perform sensitive actions (e.g., adding MCP services)
+# List of user IDs, e.g., "user123@wechat", "discord_user_id_456"
+ALLOWED_USERS = [
+    "admin_user_id_1",
+    "trusted_friend_id_2",
+]
+
+# Example of how to potentially structure more complex whitelist rules if needed later
+# ADVANCED_RULES = {
+# "can_add_mcp": ["admin_user_id_1"],
+# "can_trigger_critical_workflows": ["admin_user_id_1", "ops_lead_id_3"]
+# }
+
+if __name__ == '__main__':
+    # This allows testing the whitelist independently if necessary
+    print(f"Allowed users: {ALLOWED_USERS}")

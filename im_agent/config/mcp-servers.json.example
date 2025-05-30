@@ -1,0 +1,59 @@
+[
+    {
+        "name": "BaiduMap_GetLocationText",
+        "description": "Get location information from Baidu Maps using text search.",
+        "url": "http://localhost:8888/mcp/map/place/text",
+        "method": "GET",
+        "params_schema": {
+            "query": {"type": "string", "required": true, "description": "Search query (e.g., 'Eiffel Tower')"},
+            "region": {"type": "string", "required": true, "description": "Region or city to search within (e.g., 'Paris')"},
+            "ret_coordtype": {"type": "string", "required": false, "default": "gcj02ll", "description": "Coordinate type for results."}
+        },
+        "auth_type": "none",
+        "timeout_seconds": 15
+    },
+    {
+        "name": "OpenWeatherMap_Current",
+        "description": "Get current weather for a city using OpenWeatherMap.",
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "method": "GET",
+        "params_schema": {
+            "q": {"type": "string", "required": false, "description": "City name (e.g., 'London,uk')"},
+            "lat": {"type": "number", "required": false, "description": "Latitude"},
+            "lon": {"type": "number", "required": false, "description": "Longitude"},
+            "appid": {"type": "string", "required": true, "description": "API key (set via api_key_env_var)"},
+            "units": {"type": "string", "required": false, "default": "metric"}
+        },
+        "auth_type": "apikey",
+        "api_key_env_var": "OPENWEATHERMAP_API_KEY", 
+        "api_key_param_name": "appid",
+        "timeout_seconds": 10
+    },
+    {
+        "name": "EchoServiceHttpPost",
+        "description": "A simple service that echoes back the JSON payload sent via POST.",
+        "url": "https://httpbin.org/post",
+        "method": "POST",
+        "headers": {
+            "Content-Type": "application/json",
+            "X-Custom-Header": "MyAgentCall"
+        },
+        "params_schema": {
+            "message": {"type": "string", "required": true},
+            "data": {"type": "object", "required": false}
+        },
+        "auth_type": "none",
+        "timeout_seconds": 20
+    },
+    {
+        "name": "ServiceWithDirectApiKeyInHeader",
+        "description": "Service that uses a directly specified API key in headers.",
+        "url": "https://httpbin.org/headers", 
+        "method": "GET",
+        "auth_type": "apikey",
+        "api_key": "your-direct-api-key-here-12345",
+        "api_key_header": "X-Auth-Token",
+        "api_key_value_prefix": "SecretKey ",
+        "timeout_seconds": 10
+    }
+]

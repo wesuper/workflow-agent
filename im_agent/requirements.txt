@@ -1,0 +1,7 @@
+# This file is manually generated based on pyproject.toml dependencies.
+# For a more accurate and environment-specific list, it's recommended to use a tool like
+# 'uv pip compile pyproject.toml --output-file requirements.txt'
+# in an environment where uv and all dependencies are fully resolved.
+
+openai>=1.0
+requests>=2.20

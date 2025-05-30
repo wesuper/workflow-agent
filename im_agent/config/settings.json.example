@@ -1,0 +1,27 @@
+{
+    "llm_provider": "DummyLLM",
+    "llm_config": {
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "gpt-3.5-turbo"
+    },
+    "mcp_servers_config_path": "config/mcp-servers.json",
+    "whitelist_file_path": "config/whitelist.py",
+    "automator_workflows_map_path": "config/automator_map.json",
+    "log_level": "INFO",
+    "im_settings": {
+        "dummy": {
+            "enabled": true,
+            "simulated_message_interval_seconds": 15
+        },
+        "wechat_work": {
+            "enabled": false,
+            "corp_id": "YOUR_CORP_ID_HERE",
+            "agent_id": "YOUR_AGENT_ID_HERE",
+            "secret_env_var": "YOUR_WECHAT_WORK_SECRET_ENV_VAR"
+        },
+        "discord": {
+            "enabled": false,
+            "bot_token_env_var": "YOUR_DISCORD_BOT_TOKEN_ENV_VAR"
+        }
+    }
+}

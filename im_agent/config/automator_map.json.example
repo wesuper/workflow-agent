@@ -1,0 +1,33 @@
+{
+    "open_discord": {
+        "path": "/Applications/Discord.app",
+        "type": "app",
+        "description": "Opens the Discord application."
+    },
+    "create_desktop_folder_named_test": {
+        "path": "tell application \"Finder\"\nactivate\nmake new folder at desktop with properties {name:\"Test Folder from Automator\"}\nend tell",
+        "type": "osascript_command",
+        "description": "Creates a new folder named 'Test Folder from Automator' on the desktop using AppleScript."
+    },
+    "run_example_shell_script": {
+        "path": "workflows/example.sh",
+        "type": "shell_script",
+        "description": "Runs an example shell script located in the 'workflows' directory. Expects arguments.",
+        "timeout_seconds": 30
+    },
+    "set_volume_applescript": {
+        "path": "workflows/set_system_volume.scpt",
+        "type": "osascript_file",
+        "description": "Sets the system volume using an AppleScript file. Expects one argument: volume level (0-7 or 0-100)."
+    },
+    "example_generic_workflow": {
+        "path": "/Users/yourusername/Library/Services/MyExampleWorkflow.workflow",
+        "type": "workflow",
+        "description": "An example .workflow file. How arguments are passed depends on the first action in this workflow."
+    },
+    "run_ls_via_osascript_shell": {
+        "path": "ls -la ~/",
+        "type": "osascript_shell",
+        "description": "Executes 'ls -la ~/' using 'do shell script' via osascript. Useful for simple shell commands."
+    }
+}
