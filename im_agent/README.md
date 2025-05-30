@@ -2,36 +2,74 @@
 
 ## Overview
 
-IM-Agent is a Python-based smart agent designed to automate tasks on a macOS desktop through commands received via various instant messaging (IM) platforms. It leverages Large Language Models (LLMs) to understand user requests, interact with external services (MCPs - Master Control Programs), and execute local Automator workflows or scripts. The agent aims to provide a conversational interface for complex task automation.
+IM-Agent is a Python-based smart agent designed to automate tasks on **macOS and Android platforms** through commands received via various instant messaging (IM) platforms. It leverages Large Language Models (LLMs) to understand user requests.
+
+The Agent features a **modular design** with distinct layers for **Planning, Memory, Tools, and Action (Execution)**. The agent's core logic is designed to eventually leverage **LangGraph** for sophisticated, stateful execution of tasks, enabling more complex and robust automation capabilities.
+
+Its expanded **RPA capabilities** now support both **macOS Automator and Android (via Appium)**, making it a versatile tool for cross-platform automation.
 
 ## Core Features
 
 *   **Instant Messaging Integration:** Supports multiple IM platforms (e.g., Discord, WeChat Work, with a Dummy adapter for testing) for receiving commands and sending responses.
-*   **LLM-Powered Understanding:** Utilizes LLMs (e.g., OpenAI GPT models, DummyLLM for testing) to parse user messages, maintain conversation context, and translate requests into actionable commands.
-*   **MCP Service Interaction:** Can connect to and invoke external APIs or services (MCPs) to fetch data or perform actions beyond the local machine. Supports dynamic addition of new MCP services.
-*   **macOS Automator & Scripting:** Executes macOS Automator workflows, AppleScripts, and shell scripts to perform local desktop automation tasks.
-*   **Configurable & Extensible:** Designed with a modular architecture, allowing for new IM platforms, LLM providers, MCP services, and Automator workflows to be added.
+*   **LLM Integration:** Features an **abstracted LLM interface** allowing easy switching between providers (e.g., OpenAI GPT models, DummyLLM for testing) to parse user messages, maintain conversation context, and translate requests into actionable commands.
+*   **MCP Management:** Implements an **abstracted MCP interface** for connecting to and invoking external APIs or services (Master Control Programs). Supports dynamic, chat-based extension of MCP services by whitelisted users.
+*   **RPA Layer (Robotic Process Automation):** A dedicated layer for abstracting automation across different platforms.
+    *   **macOS:** Utilizes Automator workflows, AppleScripts, and shell scripts.
+    *   **Android:** Leverages Appium for UI automation on Android devices/emulators.
+*   **Intelligent Automation:** Interprets user intent via LLM and triggers appropriate RPA or MCP actions.
+*   **Configurable & Extensible:** Modular architecture allows for new IM platforms, LLM providers, MCP services, and RPA workflows to be added.
 
 ## Technology Stack
 
 *   **Python:** Version 3.12
-*   **uv:** For project and environment management (alternative to pip/venv).
+*   **uv:** For project and environment management.
 *   **Asyncio:** For concurrent operations, especially for IM adapters.
-*   **Supported OS for Full Functionality:** macOS (Automator features are macOS-specific). Core agent can run on other OSes with Automator disabled.
+*   **Supported OS for RPA:**
+    *   macOS: For Automator and Appium-based macOS automation (if applicable).
+    *   Android: For Appium-based automation (requires an Android device or emulator).
+    *   Core agent can run on other OSes with platform-specific RPA features disabled.
 *   **Key Python Libraries:**
     *   `openai` (for OpenAI LLM adapter)
     *   `requests` (for MCP service handler)
+    *   `Appium-Python-Client` (for Android automation, to be added)
+*   **Automation Tools:**
+    *   macOS Automator
+    *   Appium Server
+
+## Architecture
+
+The IM-Agent is structured around several key layers, with LangGraph planned for managing the stateful execution flow between them:
+
+*   **Planning:** This layer is responsible for high-level decision-making and task decomposition. It will leverage the LLM, combined with information about available tools (MCPs, RPA workflows), to create a plan to fulfill the user's request.
+*   **Memory:** Handles both short-term memory (like current conversation history for context) and is designed for future extension to long-term memory (e.g., user preferences, learned successful automation patterns).
+*   **Tools:** This layer provides the interfaces to all external capabilities:
+    *   **RPA Tools:**
+        *   **macOS Automator:** For executing local macOS scripts and workflows.
+        *   **Android Appium:** For automating actions on Android applications.
+    *   **MCP Tools:** Extensible set of external services. An example could be `@baidumap/mcp-server-baidu-map` for location services.
+    *   **LLM as a Core Component:** The LLM is integral, interacting with the Planning layer for reasoning and the Tools layer for understanding how to use specific tools.
+*   **Action (Execution):** This layer takes the plan generated by the Planning layer and executes it by orchestrating the appropriate tools (RPA or MCP).
+*   **LangGraph:** The agent's core control flow, managing the interaction between these layers, is intended to be refactored and managed using LangGraph. This will allow for more robust, stateful, and observable execution of complex tasks.
+
+**Simplified Data Flow:**
+`User IM -> IM Interface -> Memory (update) -> Planning (LLM + Tools Info) -> Action (executes Tool via RPA/MCP) -> Memory (update) -> IM Interface -> User IM`
 
 ## Prerequisites
 
-*   **macOS (Recommended):** For full functionality including Automator workflows.
 *   **Python 3.12 or higher:** Download from [python.org](https://www.python.org/).
-*   **uv:** Installation instructions at [astral.sh/uv](https://astral.sh/uv). After installing, ensure it's in your PATH.
+*   **uv:** Installation instructions at [astral.sh/uv](https://astral.sh/uv).
     ```bash
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Source your shell profile (e.g., ~/.bash_profile, ~/.zshrc) or open a new terminal
+    # Source your shell profile or open a new terminal
     ```
 *   **Git:** For cloning the repository.
+*   **For macOS RPA:** macOS operating system.
+*   **For Android RPA:**
+    *   **Appium Server:** Install globally (`npm install -g appium`).
+    *   **Appium Python Client:** Will be added to `pyproject.toml` (e.g., `appium-python-client`).
+    *   **Android SDK:** For `adb` and emulator management.
+    *   An Android emulator or physical device configured for automation.
+    *   Refer to `README_RPA_Workflows.md` for detailed Appium setup.
 
 ## Setup Instructions
 
@@ -49,109 +87,97 @@ IM-Agent is a Python-based smart agent designed to automate tasks on a macOS des
     ```
 
 3.  **Install Dependencies:**
-    It's recommended to use `pyproject.toml` with `uv sync` if all dependencies are listed there. If a `requirements.txt` is provided (see Step 4 of Finalization task):
     ```bash
-    uv pip install -r requirements.txt 
-    # Or, to sync directly with pyproject.toml:
-    # uv sync pyproject.toml # This might be preferred if pyproject.toml is the source of truth
+    uv sync pyproject.toml 
+    # Alternatively, if a requirements.txt is maintained:
+    # uv pip install -r requirements.txt
     ```
 
 4.  **Configuration:**
-    The agent uses configuration files stored in the `im_agent/config/` directory. Example files are provided with a `.example` extension. Copy these to create your local configurations:
-
-    *   **Main Settings:**
-        ```bash
-        cp config/settings.json.example config/settings.json
-        ```
-        Edit `config/settings.json`:
-        *   `llm_provider`: Choose your LLM provider (e.g., "OpenAI", "DummyLLM").
-        *   `llm_config`: Configure settings for the chosen LLM.
-            *   For OpenAI: Set `api_key_env_var` to the name of the environment variable holding your API key (e.g., "OPENAI_API_KEY").
-        *   `llm_system_prompt_path`: Path to the system prompt file (e.g., "config/system_prompt.md").
-        *   `im_settings`: Configure your desired IM platforms. Set `"enabled": true` for each platform you want to use.
-            *   `"dummy"`: Good for initial testing.
-            *   `"wechat_work"`: Requires `corp_id`, `agent_id`, `secret_env_var`.
-            *   `"discord"`: Requires `bot_token_env_var`.
-        *   `mcp_servers_config_path`: Path to MCP services definition (e.g., "config/mcp-servers.json").
-        *   `whitelist_file_path`: Path to user whitelist Python file (e.g., "config/whitelist.py").
-        *   `automator_workflows_map_path`: Path to Automator workflow map (e.g., "config/automator_map.json").
-        *   `log_level`: Set desired logging level (e.g., "INFO", "DEBUG").
-        *   `conversation_history_max_length`: Max number of messages (user + assistant) to keep per conversation.
-
-    *   **LLM System Prompt (if using path from `settings.json`):**
-        ```bash
-        cp config/system_prompt.md.example config/system_prompt.md 
-        ```
-        Review and customize `config/system_prompt.md` if needed.
-
-    *   **MCP Services:**
-        ```bash
-        cp config/mcp-servers.json.example config/mcp-servers.json
-        ```
-        Edit `config/mcp-servers.json` to define your MCP services.
-
-    *   **User Whitelist:**
-        ```bash
-        cp config/whitelist.py.example config/whitelist.py
-        ```
-        Edit `config/whitelist.py` to add user IDs authorized for sensitive actions (like adding MCPs).
-
-    *   **Automator Workflow Map (macOS only):**
-        ```bash
-        cp config/automator_map.json.example config/automator_map.json
-        ```
-        Edit `config/automator_map.json` to define your Automator workflows.
+    Copy example configuration files from `im_agent/config/` and customize them:
+    *   **Main Settings:** `cp config/settings.json.example config/settings.json`
+        *   Edit `config/settings.json`: Review settings for `llm_provider`, `llm_config` (including API key setup via environment variables like `OPENAI_API_KEY`), `llm_system_prompt_path`, `im_settings` (enable desired platforms and provide their specific configs like tokens/keys via env vars), paths to `mcp-servers.json`, `whitelist.py`, `automator_map.json` (for macOS RPA), logging level, and conversation history length.
+        *   (Future) Mention any Appium-specific configurations if added (e.g., Appium server URL, default desired capabilities).
+    *   **LLM System Prompt:** `cp config/system_prompt.md.example config/system_prompt.md` (if path is used).
+    *   **MCP Services:** `cp config/mcp-servers.json.example config/mcp-servers.json`.
+    *   **User Whitelist:** `cp config/whitelist.py.example config/whitelist.py`.
+    *   **RPA Workflow Maps:**
+        *   For macOS Automator: `cp config/automator_map.json.example config/automator_map.json`.
+        *   (Future) For Android Appium: A similar map might be introduced, e.g., `config/appium_map.json`.
 
 5.  **Set Environment Variables:**
-    The agent relies on environment variables for sensitive information like API keys. Set these in your shell environment or using a `.env` file (ensure `.env` is in `.gitignore`).
-    Example:
+    Set required environment variables for API keys, IM bot tokens, etc. Example:
     ```bash
     export OPENAI_API_KEY="your_openai_api_key_here"
-    export YOUR_WECHAT_WORK_SECRET_ENV_VAR="your_wechat_work_secret"
     export YOUR_DISCORD_BOT_TOKEN_ENV_VAR="your_discord_bot_token"
-    # Add any other environment variables required by your MCP service configurations
+    # Add others as needed by your chosen IM platforms and MCP services
     ```
-    If using a `.env` file in the `im_agent` root, you might need a library like `python-dotenv` and load it at the beginning of `main.py` (not currently implemented).
 
 ## Running the Agent
 
-Once setup is complete, run the agent from the `im_agent` root directory:
+From the `im_agent` root directory:
 ```bash
 python src/agent/main.py --config_path config/settings.json
 ```
-*   You can specify a different configuration file using the `--config_path` argument. If omitted, it defaults to `config/settings.json` relative to the project root.
-*   The agent will initialize and connect to the enabled IM platforms.
+*   The `--config_path` argument is optional and defaults to `config/settings.json`.
+*   The agent will initialize and connect to enabled IM platforms. For Android RPA, ensure your Appium server is running.
 
-## Basic Usage
+## Usage
 
-*   **Dummy IM Adapter:** If the `dummy` IM adapter is enabled in `settings.json`, it will simulate receiving messages at intervals. You can see the agent's processing flow in the console logs.
-*   **Other IM Platforms:** Interact with the agent by sending messages through the configured IM platform (e.g., send a message to your Discord bot).
+*   Interact with the agent via your configured IM platform.
 *   **Example Commands (Natural Language):**
     *   "Hello, how are you?"
-    *   "What can you do?"
-    *   "What's the weather like in London?" (Requires `OpenWeatherMap_Current` or similar MCP)
-    *   "Remind me to buy groceries at 6 PM." (Requires an Automator workflow like `create_reminder`)
+    *   "What's the weather like in London?" (uses MCP)
+    *   "Remind me to buy groceries at 6 PM." (uses macOS Automator via RPA)
+    *   "Open the calculator app on my phone." (uses Android Appium via RPA - future capability)
     *   (For whitelisted user) "Add this MCP service: { \"name\": \"NewService\", ... }"
 
-## Automator Integration (macOS)
+## RPA Integration (macOS & Android)
 
-For detailed information on creating and using Automator workflows with IM-Agent, please refer to the `README_Automator.md` file in this repository.
+For detailed information on creating and configuring RPA workflows (macOS Automator, Android Appium), please refer to `README_RPA_Workflows.md`.
 
-## Extensibility
+## Development & Contributing
 
-*   **Adding New IM Adapters:** Create a new class in `src/agent/im/` inheriting from `IMInterface`, then add it to `SUPPORTED_IM_PLATFORMS` in `src/agent/im/__init__.py`.
-*   **Adding New LLM Providers:** Create a new class in `src/agent/llm/` inheriting from `LLMInterface`, then add it to `SUPPORTED_LLM_PROVIDERS` in `src/agent/llm/__init__.py`.
-*   **Adding New MCP Services:** Define new services in your `config/mcp-servers.json` file, or use the "Add MCP" command if you are a whitelisted user.
-*   **Adding New Automator Workflows:** Define new workflows in your `config/automator_map.json` and place the corresponding script/workflow files in accessible locations.
+### Code Structure (Target Architecture)
+
+The agent's codebase is organized to reflect its layered architecture:
+
+*   `src/agent/core/planning/`: Logic for task decomposition and planning (LLM-driven).
+*   `src/agent/core/memory/`: Short-term and long-term memory management.
+*   `src/agent/tools/rpa/`: RPA tool implementations (macOS Automator, Android Appium adapters).
+*   `src/agent/tools/mcp/`: MCP service handling and definitions.
+*   `src/agent/im/`: IM platform adapters.
+*   `src/agent/llm/`: LLM provider adapters.
+*   `src/agent/config.py`: Configuration loading.
+*   `src/agent/main_graph.py`: (Target) LangGraph definition for the main agent control flow.
+*   `src/agent/main.py`: Main agent orchestration and entry point (currently holds more logic, to be refactored with LangGraph).
+
+### Code Quality
+
+*   **PEP 8:** Adherence to Python Enhancement Proposal 8 style guide.
+*   **Formatting:** `black` for consistent code formatting.
+*   **Linting:** `ruff` for identifying and fixing code quality issues.
+*   **Type Hints:** Comprehensive use of Python type hints for clarity and static analysis.
+*   **Comments & Docstrings:** Meaningful comments for complex logic and comprehensive docstrings for modules, classes, and functions.
+*   **Logging:** Robust logging throughout the application for debugging and monitoring.
+
+### Extending the Agent
+
+*   **Adding New LLM Providers:** Implement the `LLMInterface` and register in the LLM factory.
+*   **Integrating New MCP Services:** Define in `mcp-servers.json` or add dynamically via chat (if whitelisted).
+*   **Creating New RPA Workflows:** See `README_RPA_Workflows.md` for details on adding macOS Automator or Android Appium workflows and mapping them.
+*   **Extending/Modifying LangGraph (Future):** Once LangGraph is fully integrated, new capabilities can be added as nodes or by modifying graph edges in `main_graph.py`.
+*   **Enhancing Planning or Memory Layers:** Contributions to improve the agent's reasoning, learning, or context management are welcome.
 
 ## Troubleshooting
 
-*   **Check Logs:** The agent logs extensively to the console. Log level can be adjusted in `config/settings.json`.
-*   **Environment Variables:** Ensure all required environment variables (API keys, secrets) are correctly set and accessible to the agent process.
-*   **File Paths:** Verify that paths in `config/settings.json` (for other configs, system prompt) and in `mcp-servers.json`/`automator_map.json` (for scripts) are correct relative to the project structure or are absolute.
-*   **Permissions (macOS):** For Automator workflows interacting with applications or system services, macOS may require permissions to be granted (e.g., in System Settings > Privacy & Security > Automation or Accessibility).
-*   **Dependency Issues:** If you encounter import errors, ensure your virtual environment is active and all dependencies from `requirements.txt` (or `pyproject.toml`) are installed correctly.
+*   **Check Logs:** Console logs provide detailed information. Adjust log level in `config/settings.json`.
+*   **Environment Variables:** Ensure all required API keys and tokens are correctly set.
+*   **File Paths:** Verify paths in configuration files.
+*   **Permissions (macOS):** Grant necessary permissions for Automator workflows in System Settings.
+*   **Appium Setup (Android):** Ensure Appium server is running, device/emulator is correctly configured, and `adb` can see the device. Refer to Appium documentation and `README_RPA_Workflows.md`.
+*   **Dependency Issues:** Ensure virtual environment is active and dependencies are installed correctly using `uv sync pyproject.toml`.
 
 ---
-This README provides a comprehensive guide for users to set up, run, and extend the IM-Agent.
+This updated README reflects the new architectural vision and expanded capabilities, including the planned LangGraph integration and Android RPA support.
 ```
