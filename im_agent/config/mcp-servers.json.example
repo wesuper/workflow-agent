@@ -25,7 +25,7 @@
             "units": {"type": "string", "required": false, "default": "metric"}
         },
         "auth_type": "apikey",
-        "api_key_env_var": "OPENWEATHERMAP_API_KEY", 
+        "api_key_env_var": "OPENWEATHERMAP_API_KEY",
         "api_key_param_name": "appid",
         "timeout_seconds": 10
     },
@@ -48,7 +48,7 @@
     {
         "name": "ServiceWithDirectApiKeyInHeader",
         "description": "Service that uses a directly specified API key in headers.",
-        "url": "https://httpbin.org/headers", 
+        "url": "https://httpbin.org/headers",
         "method": "GET",
         "auth_type": "apikey",
         "api_key": "your-direct-api-key-here-12345",

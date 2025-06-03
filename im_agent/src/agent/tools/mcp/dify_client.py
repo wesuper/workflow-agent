@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class DifyClient(AbstractMCPClient):
     def __init__(self):
         self.api_key: Optional[str] = None
-        self.api_base_url: Optional[str] = None 
+        self.api_base_url: Optional[str] = None
         self.configured_apps: Dict[str, Dict[str, Any]] = {} # Stores Dify app specific info
         self.client: Optional[httpx.AsyncClient] = None
         logger.info("DifyClient instance created. Needs initialization.")
@@ -18,7 +18,7 @@ class DifyClient(AbstractMCPClient):
     async def initialize(self, config: Dict[str, Any]) -> bool:
         """
         Initializes the Dify client.
-        Config should include: 'api_key_env_var', 'api_base_url', 
+        Config should include: 'api_key_env_var', 'api_base_url',
                              'apps': [{"name": "my_chat_app", "app_id": "...", "description": "...", "features": ["chat", "completion"]}]
         """
         logger.info("Initializing DifyClient...")
@@ -26,19 +26,19 @@ class DifyClient(AbstractMCPClient):
         if not api_key_env_var:
             logger.error("Dify config missing 'api_key_env_var'.")
             return False
-            
+
         self.api_key = os.environ.get(api_key_env_var)
-        self.api_base_url = config.get("api_base_url", "https://api.dify.ai/v1") 
-        
+        self.api_base_url = config.get("api_base_url", "https://api.dify.ai/v1")
+
         if not self.api_key:
             logger.error(f"Dify API key not found in environment variable '{api_key_env_var}'.")
             return False
-        
+
         raw_apps = config.get("apps", [])
         if not isinstance(raw_apps, list):
             logger.error("Dify config 'apps' must be a list.")
             return False
-            
+
         for app_config in raw_apps:
             if isinstance(app_config, dict) and "name" in app_config:
                 self.configured_apps[app_config['name']] = app_config
@@ -49,7 +49,7 @@ class DifyClient(AbstractMCPClient):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         })
-        
+
         logger.info(f"DifyClient initialized. Base URL: {self.api_base_url}, Apps: {list(self.configured_apps.keys())}")
         return True
 
@@ -76,14 +76,14 @@ class DifyClient(AbstractMCPClient):
         # This is a simplified example. Dify's API for different app types (chat, completion, workflow) varies.
         # Consult Dify documentation for the correct endpoint and payload structure.
         # Example: /chat-messages for chat apps, /completion-messages for completion apps, etc.
-        
+
         endpoint = ""
         data_payload: Dict[str, Any] = {}
         app_features = dify_app_config.get("features", [])
 
         # This logic is highly dependent on Dify's API and how you structure your app configs
         if "chat" in app_features: # Assuming a chat-type application
-            endpoint = "/chat-messages" 
+            endpoint = "/chat-messages"
             data_payload = {
                 "inputs": parameters.get("inputs", {}), # Custom inputs for the Dify app
                 "query": query,
@@ -108,12 +108,12 @@ class DifyClient(AbstractMCPClient):
         if not endpoint:
             logger.error(f"Could not determine Dify endpoint for app '{service_name}' with features: {app_features}")
             return False, {"error": f"Unsupported Dify app type or features for '{service_name}'."}
-        
+
         logger.info(f"Invoking Dify app '{service_name}' at endpoint '{endpoint}' with payload: {data_payload}")
 
         try:
             response = await self.client.post(endpoint, json=data_payload, timeout=self.config.get("timeout_seconds", 30))
-            response.raise_for_status() 
+            response.raise_for_status()
             return True, response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"Dify API HTTPStatusError for '{service_name}': {e.response.status_code} - {e.response.text}", exc_info=True)
@@ -133,7 +133,7 @@ class DifyClient(AbstractMCPClient):
         if not app_name:
             logger.warning("Dify service config must include a 'name' to be added.")
             return False
-        
+
         # Basic validation, more might be needed depending on Dify app requirements
         if "app_id" not in service_config or "features" not in service_config:
             logger.warning(f"Dify service config for '{app_name}' is missing 'app_id' or 'features'.")
@@ -161,24 +161,24 @@ if __name__ == '__main__':
 
     async def test_dify_client():
         logger.info("--- Testing DifyClient ---")
-        
+
         # Mock configuration - Set DIFY_TEST_KEY environment variable for this to run
-        os.environ["DIFY_TEST_KEY"] = "your_actual_dify_api_key_or_dummy" 
-        
+        os.environ["DIFY_TEST_KEY"] = "your_actual_dify_api_key_or_dummy"
+
         dify_config = {
             "api_key_env_var": "DIFY_TEST_KEY",
             "api_base_url": "https://api.dify.ai/v1", # Use your actual Dify API base if self-hosting
             "apps": [
                 {
-                    "name": "general_chat_app", 
+                    "name": "general_chat_app",
                     "app_id": "YOUR_DIFY_CHAT_APP_ID", # Replace with actual Dify App ID
-                    "description": "General Chat with Dify", 
+                    "description": "General Chat with Dify",
                     "features": ["chat"] # Indicates it's a chat-type application
                 },
                 {
-                    "name": "story_writer_app", 
+                    "name": "story_writer_app",
                     "app_id": "YOUR_DIFY_COMPLETION_APP_ID", # Replace with actual Dify App ID
-                    "description": "Story Writer with Dify", 
+                    "description": "Story Writer with Dify",
                     "features": ["completion"] # Indicates it's a completion-type application
                 }
             ]
@@ -205,7 +205,7 @@ if __name__ == '__main__':
         # Test invoking a "chat" type app
         print("\n--- Invoking Dify Chat App ---")
         chat_params = {
-            "query": "Hello Dify, how are you?", 
+            "query": "Hello Dify, how are you?",
             "user_id": "test_user_123",
             # "conversation_id": "conv_abc_123" # Optional
             "inputs": {} # Optional, if your Dify app uses specific input variables

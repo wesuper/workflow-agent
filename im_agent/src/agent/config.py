@@ -48,7 +48,7 @@ class AppSettings:
                 base_dir = os.path.dirname(settings_file_path)
                 mcp_config_path = os.path.join(base_dir, mcp_config_path)
             self._load_json_config("mcp_servers", mcp_config_path)
-            
+
         automator_map_path = self.settings.get("automator_workflows_map_path")
         if automator_map_path:
             if not os.path.isabs(automator_map_path):
@@ -155,7 +155,7 @@ class AppSettings:
         if im_client_name:
             return im_settings_all.get(im_client_name, {})
         return im_settings_all
-    
+
     def get_mcp_servers_config(self) -> Optional[Dict[str, Any]]:
         """Gets the loaded MCP servers configuration."""
         return self.settings.get("mcp_servers")
@@ -239,7 +239,7 @@ print("Dummy whitelist.py executed during import")
         print(f"Log Level: {settings.log_level}")
         print(f"IM Settings for 'test_client': {settings.get_im_settings('test_client')}")
         print(f"All IM Settings: {settings.get_im_settings()}")
-        
+
         print(f"MCP Servers Config: {settings.get_mcp_servers_config()}")
         print(f"Automator Workflows Map: {settings.get_automator_workflows_map()}")
 
@@ -251,7 +251,7 @@ print("Dummy whitelist.py executed during import")
         time.sleep(1) # Ensure modification time is different
         with open(whitelist_file, 'w') as f:
             f.write('ALLOWED_USERS = ["user1", "user2", "user3_added_hot"]\nprint("Dummy whitelist.py re-executed during import")')
-        
+
         # On POSIX systems, mtime resolution might be 1 second.
         # Forcing a noticeable delay to ensure mtime changes.
         # In a real scenario, file system events would trigger this.
@@ -267,7 +267,7 @@ print("Dummy whitelist.py executed during import")
         with open(whitelist_file, 'w') as f:
             f.write('ALLOWED_USERS = ["user1", "user2", "user4_oops_syntax_error"\nprint("Dummy whitelist.py re-executed with error")') # Intentional syntax error
         time.sleep(1.1)
-        
+
         # The behavior on error is to keep the last known good whitelist
         print(f"Whitelist after syntax error (should be last good one): {settings.get_whitelist()}")
 

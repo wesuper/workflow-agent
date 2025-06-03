@@ -40,8 +40,8 @@ class DummyLLM(AbstractLLMClient): # Inherits from AbstractLLMClient
             For DummyLLM, success is always True.
         """
         # Simulate some async behavior if needed, e.g., await asyncio.sleep(0.01)
-        await asyncio.sleep(0.01) 
-        
+        await asyncio.sleep(0.01)
+
         history_len = len(conversation_history) if conversation_history else 0
         response = f"DummyLLM received: '{prompt}'. History length: {history_len}. Config: {self.config.get('dummy_setting', 'Not Set')}"
         logger.debug(f"DummyLLM generating response: {response}")
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     async def test_dummy_llm():
         dummy_config = {"dummy_setting": "TestValue123", "model_name": "dummy-model-001"}
         dummy_llm = DummyLLM()
-        
+
         init_success = await dummy_llm.initialize(config=dummy_config)
         print(f"DummyLLM Init success: {init_success}")
         assert init_success
@@ -73,7 +73,7 @@ if __name__ == '__main__':
         success2, response2 = await dummy_llm.get_response(prompt=test_prompt, conversation_history=test_history)
         print(f"Success: {success2}, Response: {response2}\n")
         assert success2
-        
+
         # Test with empty config (should still init successfully)
         empty_config_llm = DummyLLM()
         init_empty_success = await empty_config_llm.initialize(config={})

@@ -30,13 +30,13 @@ class AutomatorRPAClient(AbstractRPAClient):
         """
         logger.info("Initializing AutomatorRPAClient...")
         # self.app_settings = config.get("app_settings") # If passing the whole AppSettings instance
-        
+
         # The old AutomatorRunner took AppSettings and read automator_workflows_map_path from it.
         # Now, this client gets its specific config directly.
         # The 'config' dict for this client should specify where to find its scripts map.
         # Let's assume config['rpa_scripts_path'] gives the path to a JSON file
         # similar to the old automator_map.json.
-        
+
         self.rpa_scripts_path = config.get("rpa_scripts_path") # e.g., "config/rpa_macos_scripts.json"
         base_path_for_scripts = config.get("base_path_for_scripts", os.getcwd()) # For resolving relative paths in the map
 
@@ -57,7 +57,7 @@ class AutomatorRPAClient(AbstractRPAClient):
         if not os.path.exists(actual_map_path):
             logger.warning(f"RPA scripts map file not found: {actual_map_path}. No workflows will be available.")
             self.workflows_map = {}
-            return True 
+            return True
 
         try:
             with open(actual_map_path, 'r') as f:
@@ -75,7 +75,7 @@ class AutomatorRPAClient(AbstractRPAClient):
             logger.error(f"RPA scripts map content is not a dictionary. Path: {actual_map_path}.")
             self.workflows_map = {}
             return False
-            
+
         self.workflows_map = loaded_map_content
         logger.info(f"RPA scripts map loaded successfully from {actual_map_path}. {len(self.workflows_map)} workflows found.")
 
@@ -84,7 +84,7 @@ class AutomatorRPAClient(AbstractRPAClient):
             if not isinstance(wf_config, dict) or "path" not in wf_config or "type" not in wf_config:
                 logger.warning(f"Invalid configuration for workflow '{name}'. Missing 'path' or 'type'. Skipping.")
                 continue
-            
+
             wf_config["path"] = os.path.expanduser(os.path.expandvars(wf_config["path"]))
             # If path is relative, it should be relative to where rpa_scripts_path was, or a defined base.
             if not os.path.isabs(wf_config["path"]):
@@ -93,9 +93,9 @@ class AutomatorRPAClient(AbstractRPAClient):
 
             if wf_config["type"] not in ["osascript_command", "osascript_shell"] and not os.path.exists(wf_config["path"]): # Commands don't need existing file path
                 logger.warning(f"Path for workflow '{name}' does not exist: {wf_config['path']}. This workflow may fail.")
-            
+
             valid_workflows[name] = wf_config
-        
+
         self.workflows_map = valid_workflows
         logger.info(f"{len(self.workflows_map)} valid Automator workflows configured: {list(self.workflows_map.keys())}")
         return True
@@ -116,7 +116,7 @@ class AutomatorRPAClient(AbstractRPAClient):
         path = config["path"]
         workflow_type = config.get("type", "workflow").lower()
         timeout = config.get("timeout_seconds", 60)
-        
+
         # The old `run_workflow` took `arguments: Optional[List[str]]`.
         # The new `execute_workflow` takes `params: Optional[Dict[str, Any]]`.
         # We need to decide how to map these. For now, let's assume if params are provided,
@@ -126,7 +126,7 @@ class AutomatorRPAClient(AbstractRPAClient):
         if params:
             # Simple conversion: take values and convert to string.
             # This might need to be more sophisticated depending on script needs.
-            arguments = [str(v) for v in params.values()] 
+            arguments = [str(v) for v in params.values()]
             # Or, if keys are also important for some scripts:
             # arguments = [f"{k}={v}" for k, v in params.items()]
 
@@ -161,7 +161,7 @@ class AutomatorRPAClient(AbstractRPAClient):
             return False, f"Unsupported workflow type '{workflow_type}' for '{workflow_id}'."
 
         logger.info(f"Running Automator workflow '{workflow_id}' with command: {' '.join(cmd)}")
-        
+
         try:
             # subprocess.run is blocking, so use asyncio.to_thread
             process = await asyncio.to_thread(
@@ -196,7 +196,7 @@ class AutomatorRPAClient(AbstractRPAClient):
     async def find_element(self, locator: ElementLocator, timeout: int = 10) -> Optional[Any]:
         logger.warning("Method find_element not yet fully implemented for AutomatorRPAClient.")
         return None
-            
+
     async def get_text(self, locator: ElementLocator, timeout: int = 10) -> Optional[str]:
         logger.warning("Method get_text not yet fully implemented for AutomatorRPAClient.")
         return None
@@ -273,7 +273,7 @@ class AutomatorRPAClient(AbstractRPAClient):
 
             applescript_command = f'tell application "{app_name}" to quit'
             cmd = ["osascript", "-e", applescript_command]
-            
+
             process = await asyncio.to_thread(
                 subprocess.run, cmd, capture_output=True, text=True, check=False, timeout=30
             )

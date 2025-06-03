@@ -29,11 +29,11 @@ class LLMFactory:
         """
         logger.info(f"Attempting to get LLM client for provider: {provider_name}")
         LLMClientClass = SUPPORTED_LLM_PROVIDERS.get(provider_name)
-        
+
         if not LLMClientClass:
             logger.error(f"LLM provider '{provider_name}' not supported.")
             return None
-        
+
         client = LLMClientClass()
         try:
             initialized_successfully = await client.initialize(config)

@@ -89,14 +89,14 @@ class OpenAILLM(AbstractLLMClient): # Inherits from AbstractLLMClient
 
         try:
             logger.debug(f"Sending request to OpenAI API with model: {model_name}, messages: {messages}")
-            
+
             # The chat.completions.create call is blocking
             completion = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=model_name,
                 messages=messages
             )
-            
+
             response_content = completion.choices[0].message.content
             logger.info("Received response from OpenAI API.")
             logger.debug(f"OpenAI API full response: {completion}")
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         # Scenario 1: API key from environment variable (requires actual key for real test)
         print("--- Scenario 1: API key from environment variable ---")
         os.environ["MY_TEST_OPENAI_KEY"] = "YOUR_OPENAI_API_KEY_HERE" # Replace with a real key for live test
-        
+
         if os.environ["MY_TEST_OPENAI_KEY"] == "YOUR_OPENAI_API_KEY_HERE":
             logger.warning("Using placeholder API key for MY_TEST_OPENAI_KEY. Real API calls will fail or use other credentials if available.")
 
@@ -123,7 +123,7 @@ if __name__ == '__main__':
             "api_key_env_var": "MY_TEST_OPENAI_KEY",
             "model_name": "gpt-3.5-turbo"
         }
-        
+
         openai_llm_env = OpenAILLM()
         init_success = await openai_llm_env.initialize(config=openai_config_env)
         print(f"Init success (env key): {init_success}")

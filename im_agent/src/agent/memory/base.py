@@ -28,7 +28,7 @@ class MemoryInterface(ABC):
     async def set_long_term_memory(self, user_id: str, key: str, value: Any) -> None:
         """Sets a value in long-term memory for a user."""
         pass
-            
+
     @abstractmethod
     async def delete_long_term_memory(self, user_id: str, key: str) -> bool:
         """Deletes a value from long-term memory. Returns True if key existed and was deleted."""

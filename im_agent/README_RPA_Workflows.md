@@ -198,7 +198,7 @@ AppleScript is very powerful for macOS automation and parameter passing.
         ```json
         "run_my_automator_app_with_params": {
             "path": "tell application \"/path/to/MyApp.app\" to run with properties {the_message:\"Hello from agent\", the_count:5}",
-            "type": "osascript_command", 
+            "type": "osascript_command",
             "description": "Runs MyApp.app with specific properties via AppleScript."
         }
         ```
@@ -209,7 +209,7 @@ AppleScript is very powerful for macOS automation and parameter passing.
     on run {input, parameters}
         -- 'input' is the output from the previous Automator action.
         -- 'parameters' is generally not used when called from 'automator' CLI.
-        
+
         -- To use data passed via `automator -i "my data" ...`
         set myData to item 1 of input -- if input is a list of one item
 
@@ -257,7 +257,7 @@ AppleScript is very powerful for macOS automation and parameter passing.
 *   **`automator_map.json` entry:**
     ```json
     "open_discord": {
-        "path": "/Applications/Discord.app", 
+        "path": "/Applications/Discord.app",
         "type": "app",
         "description": "Opens the Discord application."
     }
@@ -275,7 +275,7 @@ AppleScript is very powerful for macOS automation and parameter passing.
         if (count of argv) > 0 then
             set fileContent to fileContent & "\\n\\nInput: " & (item 1 of argv)
         end if
-        
+
         tell application "Finder"
             try
                 set desktopPath to (path to desktop folder as text)
@@ -306,7 +306,7 @@ AppleScript is very powerful for macOS automation and parameter passing.
             return "Error: Please provide reminder text."
         end if
         set reminderText to item 1 of argv
-        
+
         tell application "Reminders"
             tell default list
                 make new reminder with properties {name:reminderText}

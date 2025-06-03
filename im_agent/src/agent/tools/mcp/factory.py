@@ -36,7 +36,7 @@ class MCPFactory:
         client_name = client_config_entry.get("name", client_type) # For logging
 
         logger.info(f"Attempting to get MCP client of type '{client_type}' for connection '{client_name}'.")
-        
+
         client: Optional[AbstractMCPClient] = None
 
         if client_type == "general":
@@ -49,7 +49,7 @@ class MCPFactory:
         else:
             logger.error(f"MCP client type '{client_type}' for connection '{client_name}' not supported.")
             return None
-        
+
         if client:
             try:
                 # Pass the specific configuration for this client
@@ -63,5 +63,5 @@ class MCPFactory:
             except Exception as e:
                 logger.error(f"Exception during MCP client initialization for '{client_name}' (type: {client_type}): {e}", exc_info=True)
                 return None
-        
+
         return None

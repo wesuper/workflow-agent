@@ -50,7 +50,7 @@ class AppiumRPAClient(AbstractRPAClient):
             options = AppiumOptions()
             for key, value in desired_capabilities.items():
                 options.set_capability(key, value)
-            
+
             # Use asyncio.to_thread for the blocking AppiumRemote call
             self.driver = await asyncio.to_thread(
                 AppiumRemote, command_executor=server_url, options=options
@@ -95,7 +95,7 @@ class AppiumRPAClient(AbstractRPAClient):
         if not by_strategy:
             logger.error(f"Unsupported locator strategy for Appium: {by_strategy_str}")
             return None
-        
+
         try:
             element = await asyncio.to_thread(
                 WebDriverWait(self.driver, timeout).until,
@@ -190,7 +190,7 @@ class AppiumRPAClient(AbstractRPAClient):
             # More sophisticated scrolling might use W3C Actions or UIAutomator specific commands
             window_size = await asyncio.to_thread(self.driver.get_window_size)
             width, height = window_size['width'], window_size['height']
-            
+
             start_x, start_y, end_x, end_y = 0, 0, 0, 0
             scroll_distance = int(height * distance_percentage)
 
@@ -198,7 +198,7 @@ class AppiumRPAClient(AbstractRPAClient):
                 start_x = width // 2
                 start_y = int(height * 0.8) # Start swipe from lower part of screen
                 end_x = width // 2
-                end_y = start_y - scroll_distance 
+                end_y = start_y - scroll_distance
             elif direction.lower() == "up":
                 start_x = width // 2
                 start_y = int(height * 0.2) # Start swipe from upper part of screen

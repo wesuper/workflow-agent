@@ -21,7 +21,7 @@ class AbstractLLMClient(ABC):
         response_text contains the LLM's direct response or an error message.
         """
         pass
-        
+
     # Optional: Add a method for getting embeddings if needed later
     # @abstractmethod
     # async def get_embeddings(self, text_inputs: List[str]) -> Tuple[bool, List[List[float]]]:

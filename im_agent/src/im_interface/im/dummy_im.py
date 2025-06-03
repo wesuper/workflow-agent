@@ -75,7 +75,7 @@ class DummyIMAdapter(IMInterface):
         chat_id = user_id # Default to private chat
         is_private_chat = True
         is_mention = False
-        
+
         simulated_text = f"This is a simulated message from {user_id} on {self.platform_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}."
 
         if message_type_roll < 0.3: # Simulate a group message where agent is mentioned
@@ -146,11 +146,11 @@ if __name__ == '__main__':
         if await adapter.connect():
             # Start listening in a background task
             adapter._listen_task = asyncio.create_task(adapter.start_listening())
-            
+
             # Simulate some activity
             await adapter.send_message("user123", "Hello from the main test!")
             await asyncio.sleep(dummy_config["simulated_message_interval_seconds"] * 2 + 1) # Wait for a couple of simulated messages
-            
+
             await adapter.send_message("user456", "Another message before shutdown.")
             await asyncio.sleep(1)
 

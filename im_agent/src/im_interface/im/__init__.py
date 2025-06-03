@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List
 import os # Added for __main__ block
 
 # Adjusted import path for AppSettings
-from agent.config import AppSettings 
+from agent.config import AppSettings
 from .base import IMInterface
 from .dummy_im import DummyIMAdapter
 from .wechat_work_adapter import WeChatWorkAdapter
@@ -20,8 +20,8 @@ SUPPORTED_IM_PLATFORMS: Dict[str, type[IMInterface]] = {
 }
 
 async def get_im_adapters(
-    app_settings: AppSettings, 
-    on_message_callback: Callable[[Dict[str, Any]], Any] 
+    app_settings: AppSettings,
+    on_message_callback: Callable[[Dict[str, Any]], Any]
 ) -> List[IMInterface]:
     """
     Factory function to get and initialize all enabled IM adapters based on application settings.
@@ -35,7 +35,7 @@ async def get_im_adapters(
         A list of initialized IMInterface instances.
     """
     adapters: List[IMInterface] = []
-    im_settings_all = app_settings.get_im_settings() 
+    im_settings_all = app_settings.get_im_settings()
 
     if not im_settings_all:
         logger.warning("No 'im_settings' found in application configuration. No IM adapters will be loaded.")
@@ -63,12 +63,12 @@ async def get_im_adapters(
                 logger.warning(f"Unsupported IM platform configured: '{platform_name}'. Skipping.")
         else:
             logger.info(f"IM platform '{platform_name}' is disabled in configuration. Skipping.")
-            
+
     return adapters
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
+
     class MockAppSettings:
         def __init__(self, settings_dict: Dict[str, Any]):
             self.settings = settings_dict
@@ -103,7 +103,7 @@ if __name__ == '__main__':
                 listen_task.cancel()
                 try: await listen_task
                 except asyncio.CancelledError: pass
-        
+
         print("\n--- Scenario 2: Multiple Adapters (Dummy and Discord enabled) ---")
         os.environ["TEST_DISCORD_TOKEN_FOR_FACTORY"] = "fake_discord_token"
         settings_v2 = {

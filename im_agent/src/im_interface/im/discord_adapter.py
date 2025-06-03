@@ -23,7 +23,7 @@ class DiscordAdapter(IMInterface):
         if not self.bot_token_env_var:
             logger.error(f"[{self.platform_name}] Missing configuration: bot_token_env_var.")
             return False
-        
+
         self.bot_token = os.environ.get(self.bot_token_env_var)
         if not self.bot_token:
             logger.error(f"[{self.platform_name}] Environment variable '{self.bot_token_env_var}' for bot token not set.")
@@ -72,7 +72,7 @@ class DiscordAdapter(IMInterface):
         # except Exception as e:
         #     logger.error(f"[{self.platform_name}] Error setting up Discord client: {e}")
         #     return False
-        
+
         await asyncio.sleep(0.1) # Simulate setup delay
         self.is_connected = True # Assume setup success for placeholder
         logger.info(f"[{self.platform_name}] Placeholder: Discord client configured. Call start_listening to 'run' the bot.")
@@ -87,7 +87,7 @@ class DiscordAdapter(IMInterface):
                 await self._listen_task
             except asyncio.CancelledError:
                 logger.info(f"[{self.platform_name}] Listening task (bot run) cancelled.")
-        
+
         # if self.client and self.is_connected: # self.is_connected might mean "live"
         #     try:
         #         await self.client.close()
@@ -102,7 +102,7 @@ class DiscordAdapter(IMInterface):
         if not self.is_connected: # Or more accurately, if client is not ready
             logger.warning(f"[{self.platform_name}] Cannot send message. Not connected/client not ready.")
             return False
-        
+
         logger.info(f"[{self.platform_name}] Sending message to {recipient_id} (Type: {message_type}): '{message_content}' (placeholder).")
         # Placeholder for actual message sending logic using discord.py
         # try:
@@ -174,10 +174,10 @@ class DiscordAdapter(IMInterface):
         # For testing this placeholder structure:
         # simulated_dict_from_discord_obj = {"user_id": "discord_user", "text": "hello from discord placeholder"}
         # await self._handle_incoming_message(simulated_dict_from_discord_obj)
-        
+
         # If _parse_message was implemented to handle discord.Message directly:
         # await self._handle_incoming_message(raw_discord_msg_obj) # This would call self._parse_message(raw_discord_msg_obj)
-        
+
         # For now, let's assume raw_discord_msg_obj is a dict for the placeholder's _parse_message
         await self._handle_incoming_message(raw_discord_msg_obj)
 
@@ -248,7 +248,7 @@ if __name__ == '__main__':
 
     async def main_test_loop():
         if await adapter.connect(): # This configures the client (placeholder)
-            
+
             # Start listening in a background task (placeholder for client.run)
             # adapter._listen_task = asyncio.create_task(adapter.start_listening())
 
@@ -269,7 +269,7 @@ if __name__ == '__main__':
             # which would then call _parse_message and then on_message_callback.
             # Here we simulate the step where on_message would call our internal handler.
             await adapter._discord_event_handler_on_message(simulated_raw_discord_event_data)
-            
+
             await asyncio.sleep(1)
             await adapter.send_message("discord_user_789", "Reply from agent (Discord placeholder)")
             await asyncio.sleep(1)

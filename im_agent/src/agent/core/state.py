@@ -12,15 +12,15 @@ class AgentState(TypedDict, total=False): # total=False makes all keys effective
     platform: str  # e.g., "discord", "wechat_work", "dummy"
     chat_id: str   # Unique identifier for the chat/channel/DM
     user_id: str   # Unique identifier for the user sending the message
-    
+
     # Memory / Conversation History
     # List of messages, e.g., {"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}
-    conversation_history: List[Dict[str, str]] 
-    
+    conversation_history: List[Dict[str, str]]
+
     # LLM Interaction
     current_llm_prompt: str # The exact prompt or messages list sent to the LLM
     llm_response_text: str  # Raw text response from LLM
-    
+
     # Parsed Action from LLM
     # This structure helps determine the next step in the graph.
     # 'type': str, e.g., "MCP", "RPA", "ADD_MCP", "REQUEST_TOOLS", "RESPONSE", "CLARIFY", "ERROR"
@@ -30,8 +30,8 @@ class AgentState(TypedDict, total=False): # total=False makes all keys effective
     # 'text_to_user': Optional[str], if the action is to respond directly or ask for clarification.
     # 'tool_type_requested': Optional[str], e.g. "MCP" or "RPA" if type is "REQUEST_TOOLS"
     # 'original_llm_output': str, the raw LLM output string that led to this parsed action.
-    parsed_action: Dict[str, Any] 
-    
+    parsed_action: Dict[str, Any]
+
     # Tool information and execution results
     available_mcp_services: List[Dict[str, Any]] # List of MCP service definition dictionaries
     available_rpa_scripts: Dict[str, List[Dict[str, Any]]] # E.g. {"macos": [...], "android": [...]}
@@ -40,15 +40,15 @@ class AgentState(TypedDict, total=False): # total=False makes all keys effective
     tool_parameters_used: Dict[str, Any] # Parameters passed to the last tool
     tool_invocation_result: Any # Raw result from the tool
     tool_error: str # Error message if tool execution failed (string summary)
-    
+
     # Output / Response to be sent back to the user
     final_response_to_user: str # The final message content to be sent
     error_message_to_user: str  # An error message to be presented to the user if processing fails
-    
+
     # For more complex agent behaviors (e.g., ReAct, Plan-and-Execute)
     current_task_description: str # Description of the current high-level task
     # List of (action_dict, observation_str_or_dict) tuples
-    intermediate_steps: List[Tuple[Dict[str, Any], Any]] 
+    intermediate_steps: List[Tuple[Dict[str, Any], Any]]
 
 # Example usage (for testing, not part of the file itself normally):
 if __name__ == '__main__':
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     initial_state['tool_invocation_result'] = {"temp": 15, "condition": "Cloudy"}
     initial_state['final_response_to_user'] = "The weather in London is 15°C and cloudy."
     initial_state['conversation_history'].append({"role": "assistant", "content": "The weather in London is 15°C and cloudy."})
-    
+
     print(f"State after tool call and final response generation: {initial_state}")
 
     # Example of an error state
@@ -88,9 +88,9 @@ if __name__ == '__main__':
         "conversation_history": [{"role": "user", "content": "Book a flight."}],
         "llm_response_text": "[ACTION:MCP:FlightBooking:{\"destination\": \"Paris\"}]", # Missing origin
         "parsed_action": {
-            "type": "MCP", 
-            "name": "FlightBooking", 
-            "params": {"destination": "Paris"}, 
+            "type": "MCP",
+            "name": "FlightBooking",
+            "params": {"destination": "Paris"},
             "original_llm_output": "[ACTION:MCP:FlightBooking:{\"destination\": \"Paris\"}]"
         },
         "tool_name_called": "FlightBooking",

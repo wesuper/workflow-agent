@@ -44,7 +44,7 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
                     await self._load_services_from_file() # Make it async helper
             else:
                 logger.warning("MCP servers config file path could not be determined. Services will not be loaded/persisted.")
-        
+
         # Load whitelist
         whitelist_path_setting = config.get("whitelist_file_path")
         if whitelist_path_setting:
@@ -84,13 +84,13 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
         """Helper to resolve paths, prioritizing AppSettings context if available."""
         if os.path.isabs(path_setting):
             return path_setting
-        
+
         # If app_settings was passed and has _main_settings_file_dir (from original AppSettings)
         if self.app_settings_ref and hasattr(self.app_settings_ref, '_main_settings_file_dir'):
             base_dir = getattr(self.app_settings_ref, '_main_settings_file_dir', None)
             if base_dir:
                 return os.path.join(base_dir, path_setting)
-        
+
         # Fallback to CWD or a base_path from config if provided
         base_path = config.get("base_path_for_configs", os.getcwd())
         return os.path.join(base_path, path_setting)
@@ -107,7 +107,7 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
                 with open(path, 'r') as f:
                     return json.load(f)
             services_list = await asyncio.to_thread(read_json_file, self.mcp_servers_config_file)
-            
+
             temp_services = {}
             if isinstance(services_list, list):
                 for service_config in services_list:
@@ -132,7 +132,7 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
         if not self.mcp_servers_config_file:
             logger.warning("MCP servers config file path not set. Cannot save services.")
             return False
-        
+
         try:
             # Ensure directory exists (blocking os.makedirs is fine with to_thread or if it's usually there)
             dir_name = os.path.dirname(self.mcp_servers_config_file)
@@ -140,12 +140,12 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
                 await asyncio.to_thread(os.makedirs, dir_name, exist_ok=True)
 
             services_list_to_save = list(self.services.values())
-            
+
             def write_json_file(path, data):
                 with open(path, 'w') as f:
                     json.dump(data, f, indent=4)
             await asyncio.to_thread(write_json_file, self.mcp_servers_config_file, services_list_to_save)
-            
+
             logger.info(f"MCP services saved to {self.mcp_servers_config_file}")
             return True
         except Exception as e:
@@ -178,15 +178,15 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
             else: logger.warning(f"API key env var '{api_key_env_var}' not set for service '{service_name}'.")
         elif "api_key" in service_config and api_key_header:
             headers[api_key_header] = f"{api_key_value_prefix}{service_config['api_key']}"
-        
+
         timeout = service_config.get("timeout_seconds", 30)
 
         try:
             logger.info(f"Invoking MCP service '{service_name}': {method} {url} with params: {parameters}")
-            
+
             # Use asyncio.to_thread for the blocking requests call
             response = await asyncio.to_thread(
-                requests.request, method, url, params=parameters if method == "GET" else None, 
+                requests.request, method, url, params=parameters if method == "GET" else None,
                 data=parameters if method == "POST" and headers.get("Content-Type") == "application/x-www-form-urlencoded" else None,
                 json=parameters if method == "POST" and headers.get("Content-Type") != "application/x-www-form-urlencoded" else None,
                 headers=headers, timeout=timeout
@@ -220,7 +220,7 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
         if not all(key in service_config for key in required_keys):
             logger.error(f"Invalid service_config: missing required keys. Config: {service_config}")
             return False
-        
+
         service_name = service_config["name"]
         if service_name in self.services:
             logger.warning(f"Service '{service_name}' already exists.")
@@ -228,7 +228,7 @@ class MCPServiceHandler(AbstractMCPClient): # Inherits from AbstractMCPClient
 
         self.services[service_name] = service_config
         logger.info(f"Service '{service_name}' added to in-memory registry by user '{user_id}'.")
-        
+
         if not await self._save_services_to_file():
             logger.error(f"Failed to persist new service '{service_name}' to file. It will be lost on restart.")
             # Optionally revert: del self.services[service_name]

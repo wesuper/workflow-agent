@@ -23,7 +23,7 @@ class WeChatWorkAdapter(IMInterface):
         if not all([self.corp_id, self.agent_id, self.secret_env_var]):
             logger.error(f"[{self.platform_name}] Missing configuration: corp_id, agent_id, or secret_env_var.")
             return False
-        
+
         self.secret = os.environ.get(self.secret_env_var)
         if not self.secret:
             logger.error(f"[{self.platform_name}] Environment variable '{self.secret_env_var}' for secret not set.")
@@ -40,7 +40,7 @@ class WeChatWorkAdapter(IMInterface):
         # except Exception as e:
         #     logger.error(f"[{self.platform_name}] Failed to connect to WeChat Work: {e}")
         #     return False
-        
+
         await asyncio.sleep(0.1) # Simulate connection delay
         self.is_connected = True # Assume connection success for placeholder
         logger.info(f"[{self.platform_name}] Placeholder connection successful.")
@@ -57,7 +57,7 @@ class WeChatWorkAdapter(IMInterface):
         if not self.is_connected:
             logger.warning(f"[{self.platform_name}] Cannot send message. Not connected.")
             return False
-        
+
         logger.info(f"[{self.platform_name}] Sending message to {recipient_id} (Type: {message_type}): '{message_content}' (placeholder).")
         # Placeholder for actual message sending logic using wechatpy
         # try:
@@ -112,7 +112,7 @@ class WeChatWorkAdapter(IMInterface):
                 parsed["platform"] = self.platform_name # Ensure platform is correct
                 # Add any WeChat specific mock fields if necessary for testing
             return parsed
-        
+
         logger.info(f"[{self.platform_name}] Placeholder: Actual parsing would require 'wechatpy' and XML processing.")
         return None
 
@@ -166,7 +166,7 @@ if __name__ == '__main__':
         if await adapter.connect():
             # For WeChat, start_listening is mostly a placeholder as it's callback-based.
             # We can simulate a message being pushed to its _handle_incoming_message.
-            
+
             # Simulate receiving a message (as if from callback server)
             simulated_raw_msg = {
                 "user_id": "zhangsan",
@@ -179,7 +179,7 @@ if __name__ == '__main__':
             }
             logger.info(f"\n[{adapter.platform_name}] Simulating an incoming message being processed by _handle_incoming_message...")
             await adapter._handle_incoming_message(simulated_raw_msg) # Manually call for test
-            
+
             await asyncio.sleep(2)
             await adapter.send_message("zhangsan", "Reply from agent (placeholder)")
             await asyncio.sleep(1)
@@ -193,6 +193,6 @@ if __name__ == '__main__':
         logger.info("Test interrupted by user.")
         if adapter and adapter.is_connected:
              asyncio.run(adapter.disconnect())
-    
+
     del os.environ["WECHAT_WORK_TEST_SECRET"] # Clean up env var
     logger.info("WeChatWorkAdapter placeholder test finished.")

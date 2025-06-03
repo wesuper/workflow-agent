@@ -4,447 +4,342 @@ import logging
 import os
 import signal
 import sys
-from collections import defaultdict, deque
+import argparse # For command-line arguments
+import functools # For partial application
+from collections import defaultdict, deque # Should be in AgentState or MemoryManager now
 from typing import Any, Dict, List, Optional, Deque, Coroutine
 
-# Project imports - assuming they are discoverable in PYTHONPATH
-# Adjust paths if necessary, e.g., if src is not directly in PYTHONPATH
-try:
-    from config import AppSettings, settings as global_settings # Use global_settings for AppSettings instance
-    from utils.logging_config import setup_logging
-    from llm import get_llm_adapter, LLMInterface
-    from mcp import get_mcp_handler, MCPInterface
-    from automator import get_automator_runner, AutomatorRunner
-    from im import get_im_adapters, IMInterface
-except ImportError:
-    # Fallback for cases where 'src' is the current working directory or not in python path
-    # This often happens in IDEs or when running scripts directly from within 'src'
-    # This assumes that main.py is in agent/ and other modules are relative to agent/
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-    from agent.config import AppSettings, settings as global_settings
-    from agent.utils.logging_config import setup_logging
-    from agent.llm import get_llm_adapter, LLMInterface
-    from agent.mcp import get_mcp_handler, MCPInterface
-    from agent.automator import get_automator_runner, AutomatorRunner
-    from agent.im import get_im_adapters, IMInterface
+# --- Configuration and Logging ---
+# Assuming config.py provides a global 'settings' instance or a load function
+# For this refactor, let's assume AppSettings is the class and we instantiate it.
+# The old 'global_settings' might need to be re-thought if main.py is the sole entry point for config loading.
+from agent.config import AppSettings # Assuming AppSettings loads default path or uses env var
+from agent.utils.logging_config import setup_logging
 
+# --- Core Components ---
+from agent.core.state import AgentState
+from agent.core.main_graph import create_agent_graph
+
+# --- Tooling ---
+from agent.tools.llm.factory import LLMFactory
+from agent.tools.mcp.factory import MCPFactory
+# from agent.tools.rpa.factory import RPAFactory # RPA not directly used by graph yet, but factory can be init'd
+from agent.memory.manager import MemoryManager
+
+# --- IM Interface ---
+# Adjust path if im_interface is not directly under src (it is: src/im_interface)
+# This means the path from 'agent' (which is src/agent) is '../im_interface'
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) # Add 'src' to path
+from im_interface.im import get_im_adapters, IMInterface # type: ignore
+
+# --- API and Server ---
+from agent.api import app as fastapi_app # FastAPI app instance from agent.api.__init__
+import uvicorn
 
 logger = logging.getLogger(__name__)
 
 # Define default config file path relative to the project root (im_agent directory)
-# Assuming main.py is in im_agent/src/agent/
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")) # Up from src/agent/
 DEFAULT_CONFIG_FILE = os.path.join(PROJECT_ROOT, "config", "settings.json")
 
+# Global variable to hold the compiled LangGraph app
+# This will be accessed by the IM message handler and REST API handler
+langgraph_app: Optional[Any] = None # Type hint with compiled graph type if available
+active_im_adapters_dict: Dict[str, IMInterface] = {} # For sending replies from IM handler
 
-class Agent:
-    def __init__(self, config_file_path: str = DEFAULT_CONFIG_FILE):
-        self.config_file_path = config_file_path
-        self.app_settings: AppSettings = global_settings # Use the globally configured AppSettings instance
-        
-        # Components to be initialized in setup()
-        self.llm_adapter: Optional[LLMInterface] = None
-        self.mcp_handler: Optional[MCPInterface] = None
-        self.automator_runner: Optional[AutomatorRunner] = None
-        self.active_im_adapters: Dict[str, IMInterface] = {}
-        
-        # Conversation history store: maps chat_id (platform_chatid) to a deque of messages
-        self.conversation_histories: defaultdict[str, Deque[Dict[str, str]]] = \
-            defaultdict(lambda: deque(maxlen=self.app_settings.get_config("conversation_history_max_length", 10)))
-
-        self._running_tasks: List[asyncio.Task] = []
-        self._stop_event = asyncio.Event()
+# Event for graceful shutdown handling
+shutdown_event = asyncio.Event()
 
 
-    async def setup(self):
-        """Load configurations and initialize components."""
-        try:
-            # Load application settings using the global instance
-            # The global `settings` object from `config.py` is already an AppSettings instance.
-            # If it's not loaded, we need to load it.
-            # Check if settings are already loaded (e.g. by its own __init__ or a prior call)
-            # This logic depends on how AppSettings is designed. If it loads on init, fine.
-            # If load_config needs to be called explicitly:
-            if not self.app_settings.settings: # A simple check if settings are populated
-                 logger.info(f"AppSettings appears empty, attempting to load from: {self.config_file_path}")
-                 self.app_settings.load_config(self.config_file_path)
-            
-            # Re-initialize conversation_histories maxlen in case it changed via config
-            history_maxlen = self.app_settings.get_config("conversation_history_max_length", 10)
-            self.conversation_histories = defaultdict(lambda: deque(maxlen=history_maxlen))
+async def im_message_handler(raw_im_message: Dict[str, Any]):
+    """
+    Callback for IM adapters. Invokes the LangGraph application with the received message.
+    """
+    global langgraph_app, active_im_adapters_dict # Allow access to global instances
+    if not langgraph_app:
+        logger.error("LangGraph app not initialized. Cannot process IM message.")
+        # Potentially send error back to user if possible, though adapter might not be ready
+        return
 
-            # Configure logging (must be done after settings are loaded)
-            setup_logging(log_level_str=self.app_settings.log_level) # Pass string from settings
-            logger.info(f"Logging configured with level: {self.app_settings.log_level}")
+    logger.info(f"IM Handler received: {raw_im_message}")
 
-            logger.info("Initializing LLM adapter...")
-            self.llm_adapter = get_llm_adapter(self.app_settings)
-            logger.info(f"LLM adapter initialized: {type(self.llm_adapter).__name__}")
+    # Extract chat_id for thread_id in LangGraph
+    chat_id = raw_im_message.get("chat_id", "default_chat_id") # Fallback if chat_id is missing
 
-            logger.info("Initializing MCP handler...")
-            self.mcp_handler = get_mcp_handler(self.app_settings)
-            logger.info(f"MCP handler initialized: {type(self.mcp_handler).__name__}")
-
-            if sys.platform == "darwin":
-                logger.info("Initializing Automator runner (macOS detected)...")
-                self.automator_runner = get_automator_runner(self.app_settings)
-                if self.automator_runner:
-                    logger.info(f"Automator runner initialized: {type(self.automator_runner).__name__}")
-                else:
-                    logger.warning("Automator runner could not be initialized on macOS.")
-            else:
-                logger.info("Automator runner is disabled (not on macOS).")
-
-            logger.info("Agent setup complete.")
-
-        except Exception as e:
-            logger.error(f"Error during agent setup: {e}", exc_info=True)
-            # Depending on the severity, might want to raise this to stop the agent
-            raise RuntimeError(f"Agent setup failed: {e}")
-
-
-    async def _on_im_message(self, message: Dict[str, Any]):
-        """Core callback passed to IM adapters to handle incoming messages."""
-        logger.info(f"Received message: {message}")
-        
-        # Ensure essential message fields are present
-        platform = message.get("platform")
-        chat_id = message.get("chat_id")
-        user_id = message.get("user_id")
-        text = message.get("text")
-
-        if not all([platform, chat_id, user_id, text]):
-            logger.warning(f"Message missing essential fields (platform, chat_id, user_id, text): {message}")
-            return
-
-        conversation_key = f"{platform}_{chat_id}"
-        history_for_chat = self.conversation_histories[conversation_key]
-        
-        # Add current user message to history
-        history_for_chat.append({"role": "user", "content": text})
-        logger.debug(f"Updated history for {conversation_key}: {list(history_for_chat)}")
-
-        response_text = "Sorry, I encountered an error." # Default error response
-
-        try:
-            if not self.llm_adapter:
-                logger.error("LLM Adapter not initialized. Cannot process message.")
-                response_text = "Error: LLM Adapter not available."
-            else:
-                # LLM Processing
-                llm_response_str = await self.llm_adapter.get_response(
-                    prompt=text,
-                    conversation_history=list(history_for_chat) # Pass a copy
-                )
-                logger.info(f"LLM response for {conversation_key}: {llm_response_str}")
-
-                # Action Dispatching
-                # Example prefixes:
-                # [ACTION:MCP:<service_name>:<json_parameters_string>]
-                # [ACTION:AUTOMATOR:<workflow_name>:<json_arguments_string>]
-                # [ACTION:ADD_MCP:<json_config_string>]
-                
-                action_handled = False
-                if llm_response_str.startswith("[ACTION:MCP:"):
-                    action_handled = True
-                    response_text = await self._handle_mcp_action(llm_response_str, message)
-                elif llm_response_str.startswith("[ACTION:AUTOMATOR:") and self.automator_runner:
-                    action_handled = True
-                    response_text = await self._handle_automator_action(llm_response_str, message)
-                elif llm_response_str.startswith("[ACTION:ADD_MCP:"):
-                    action_handled = True
-                    response_text = await self._handle_add_mcp_action(llm_response_str, message)
-                
-                if not action_handled:
-                    response_text = llm_response_str # Default reply is the LLM's text
-
-        except Exception as e:
-            logger.error(f"Error processing message for {conversation_key}: {e}", exc_info=True)
-            response_text = f"An error occurred while processing your request: {e}" # More specific error to user
-
-        # Send Response via IM
-        im_adapter = self.active_im_adapters.get(platform)
-        if im_adapter:
-            try:
-                success = await im_adapter.send_message(recipient_id=chat_id, message_content=response_text)
-                if success:
-                    logger.info(f"Sent reply to {conversation_key} on {platform}: {response_text}")
-                    # Add agent's reply to history
-                    history_for_chat.append({"role": "assistant", "content": response_text})
-                else:
-                    logger.error(f"Failed to send reply to {conversation_key} on {platform}.")
-            except Exception as e:
-                logger.error(f"Error sending IM reply to {conversation_key} on {platform}: {e}", exc_info=True)
-        else:
-            logger.error(f"No active IM adapter found for platform '{platform}' to send reply.")
-
-
-    async def _handle_mcp_action(self, llm_response: str, original_message: Dict[str, Any]) -> str:
-        logger.info(f"Handling MCP action: {llm_response}")
-        if not self.mcp_handler:
-            return "Error: MCP Handler is not available."
-        try:
-            # Format: [ACTION:MCP:<service_name>:<json_parameters_string>]
-            parts = llm_response.strip("[]").split(":", 3)
-            if len(parts) < 4:
-                raise ValueError("Invalid MCP action format.")
-            
-            _action_type, _mcp_literal, service_name, params_json = parts
-            params = json.loads(params_json)
-            
-            logger.info(f"Invoking MCP service: {service_name} with params: {params}")
-            mcp_result = await asyncio.to_thread(self.mcp_handler.invoke_service, service_name, params) # Run sync mcp_handler in thread
-
-            # For now, send raw result; could be summarized by LLM in future
-            return f"MCP service '{service_name}' executed. Result: {json.dumps(mcp_result)}"
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON in MCP action parameters.")
-            return "Error: Invalid JSON parameters for MCP action."
-        except ValueError as ve:
-            logger.error(f"MCP Action format error: {ve}")
-            return f"Error: MCP action format error: {ve}"
-        except Exception as e:
-            logger.error(f"Error during MCP action: {e}", exc_info=True)
-            return f"Error executing MCP action: {e}"
-
-    async def _handle_automator_action(self, llm_response: str, original_message: Dict[str, Any]) -> str:
-        logger.info(f"Handling Automator action: {llm_response}")
-        if not self.automator_runner: # Should also check sys.platform but runner is None if not darwin
-            return "Error: Automator Runner is not available on this platform."
-        try:
-            # Format: [ACTION:AUTOMATOR:<workflow_name>:<json_arguments_string>]
-            parts = llm_response.strip("[]").split(":", 3)
-            if len(parts) < 4:
-                raise ValueError("Invalid Automator action format.")
-
-            _action_type, _automator_literal, workflow_name, args_json = parts
-            args = json.loads(args_json) # Expecting a list of strings
-            if not isinstance(args, list):
-                raise ValueError("Automator arguments must be a JSON list of strings.")
-
-            logger.info(f"Running Automator workflow: {workflow_name} with arguments: {args}")
-            # AutomatorRunner.run_workflow is synchronous, run in thread
-            success, output = await asyncio.to_thread(self.automator_runner.run_workflow, workflow_name, args)
-            
-            status = "succeeded" if success else "failed"
-            return f"Automator workflow '{workflow_name}' {status}. Output:\n{output}"
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON in Automator action arguments.")
-            return "Error: Invalid JSON arguments for Automator action."
-        except ValueError as ve:
-            logger.error(f"Automator Action format error: {ve}")
-            return f"Error: Automator action format error: {ve}"
-        except Exception as e:
-            logger.error(f"Error during Automator action: {e}", exc_info=True)
-            return f"Error executing Automator action: {e}"
-
-    async def _handle_add_mcp_action(self, llm_response: str, original_message: Dict[str, Any]) -> str:
-        logger.info(f"Handling Add MCP action: {llm_response}")
-        if not self.mcp_handler:
-            return "Error: MCP Handler is not available."
-        try:
-            # Format: [ACTION:ADD_MCP:<json_config_string>]
-            parts = llm_response.strip("[]").split(":", 2)
-            if len(parts) < 3:
-                raise ValueError("Invalid Add MCP action format.")
-
-            _action_type, _add_mcp_literal, mcp_config_json = parts
-            mcp_config = json.loads(mcp_config_json)
-            user_id = original_message.get("user_id", "unknown_user") # Get user_id for whitelist check
-
-            logger.info(f"Adding MCP service by user '{user_id}': {mcp_config}")
-            # mcp_handler.add_service is synchronous, run in thread
-            success = await asyncio.to_thread(self.mcp_handler.add_service, mcp_config, user_id)
-            
-            if success:
-                return f"MCP service '{mcp_config.get('name', 'Unknown Service')}' added successfully."
-            else:
-                return f"Failed to add MCP service '{mcp_config.get('name', 'Unknown Service')}'. User '{user_id}' might not be whitelisted or config is invalid."
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON in Add MCP action configuration.")
-            return "Error: Invalid JSON configuration for Add MCP action."
-        except ValueError as ve:
-            logger.error(f"Add MCP Action format error: {ve}")
-            return f"Error: Add MCP action format error: {ve}"
-        except Exception as e:
-            logger.error(f"Error during Add MCP action: {e}", exc_info=True)
-            return f"Error adding MCP service: {e}"
-
-
-    async def run(self):
-        """Main orchestration method to connect and start IM adapters."""
-        if not self.app_settings.settings: # Check if setup was successful / settings loaded
-            logger.error("Agent setup incomplete or failed (AppSettings not loaded). Cannot run.")
-            return
-
-        logger.info("Starting IM adapters...")
-        try:
-            im_adapters_list = await get_im_adapters(self.app_settings, self._on_im_message)
-            if not im_adapters_list:
-                logger.warning("No IM adapters were loaded. The agent will not connect to any IM platform.")
-                # Optionally, exit or wait indefinitely if no adapters. For now, just log.
-                # self._stop_event.set() # If we want it to stop immediately
-                # return
-            
-            self.active_im_adapters = {adapter.platform_name: adapter for adapter in im_adapters_list}
-            logger.info(f"Loaded {len(self.active_im_adapters)} IM adapters: {list(self.active_im_adapters.keys())}")
-
-            connect_coroutines: List[Coroutine[Any, Any, bool]] = []
-            listen_coroutines: List[Coroutine[Any, Any, None]] = []
-
-            for platform, adapter in self.active_im_adapters.items():
-                logger.info(f"Preparing to connect adapter: {platform}")
-                # Schedule connect and then listen
-                # connect_coroutines.append(adapter.connect()) # This was original thought, but listen depends on connect
-                
-                # Instead, chain them or manage dependencies better.
-                # For now, let's make a task that connects then listens.
-                async def connect_and_listen(adapter_instance: IMInterface):
-                    try:
-                        if await adapter_instance.connect():
-                            logger.info(f"Adapter {adapter_instance.platform_name} connected. Starting to listen.")
-                            await adapter_instance.start_listening()
-                        else:
-                            logger.error(f"Adapter {adapter_instance.platform_name} failed to connect. Will not listen.")
-                    except asyncio.CancelledError:
-                        logger.info(f"connect_and_listen task for {adapter_instance.platform_name} cancelled.")
-                    except Exception as e_cl:
-                        logger.error(f"Error in connect_and_listen for {adapter_instance.platform_name}: {e_cl}", exc_info=True)
-                    finally:
-                        logger.info(f"connect_and_listen for {adapter_instance.platform_name} finished or was stopped.")
-                        # Ensure disconnect is called if this task ends unexpectedly
-                        if adapter_instance.is_connected: # is_connected should be a property of IMInterface
-                             logger.info(f"Adapter {adapter_instance.platform_name} seems to have stopped listening unexpectedly. Disconnecting.")
-                             await adapter_instance.disconnect()
-
-
-                self._running_tasks.append(asyncio.create_task(connect_and_listen(adapter)))
-
-            if not self._running_tasks:
-                logger.info("No IM adapter tasks started. Agent might be idle or misconfigured.")
-                # self._stop_event.set() # Stop if nothing to run
-                # return
-
-            logger.info(f"All ({len(self._running_tasks)}) IM adapter tasks created. Waiting for them to complete or for stop signal.")
-            # Keep the main run method alive until stop_event is set
-            await self._stop_event.wait()
-            logger.info("Stop event received. Proceeding to shutdown.")
-
-        except Exception as e:
-            logger.error(f"Error during agent run loop: {e}", exc_info=True)
-        finally:
-            logger.info("Agent run loop finished. Initiating shutdown of adapters...")
-            await self.shutdown_adapters()
-
-
-    async def shutdown_adapters(self):
-        """Gracefully disconnect all active IM adapters."""
-        logger.info(f"Shutting down {len(self.active_im_adapters)} IM adapters...")
-        disconnect_tasks = []
-        for platform, adapter in self.active_im_adapters.items():
-            # Check if adapter has 'is_connected' attribute and if it's true
-            is_connected_attr = getattr(adapter, 'is_connected', False)
-            # If is_connected is a callable method (property), call it
-            is_connected_val = is_connected_attr() if callable(is_connected_attr) else is_connected_attr
-
-            if is_connected_val: # Check if adapter thinks it's connected
-                logger.info(f"Disconnecting adapter: {platform}")
-                disconnect_tasks.append(adapter.disconnect())
-            else:
-                 logger.info(f"Adapter {platform} already disconnected or was never connected.")
-        
-        if disconnect_tasks:
-            results = await asyncio.gather(*disconnect_tasks, return_exceptions=True)
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    logger.error(f"Error disconnecting adapter {disconnect_tasks[i]}: {result}") # This won't give platform name easily
-            logger.info("All active IM adapters have been requested to disconnect.")
-        else:
-            logger.info("No IM adapters needed explicit disconnection.")
-            
-        # Cancel any remaining top-level tasks created in run()
-        logger.info(f"Cancelling {len(self._running_tasks)} remaining listen tasks...")
-        for task in self._running_tasks:
-            if not task.done():
-                task.cancel()
-        
-        if self._running_tasks:
-            await asyncio.gather(*self._running_tasks, return_exceptions=True) # Wait for tasks to finish cancelling
-        logger.info("All listen tasks cancelled and awaited.")
-
-
-    def _handle_signal(self, signum, frame):
-        logger.info(f"Received signal {signal.Signals(signum).name}. Initiating graceful shutdown...")
-        # Set the event to stop the main loop and any other loops waiting on it
-        self._stop_event.set()
-        # In a more complex scenario, you might have multiple events or stages of shutdown.
-        # For IM adapters, their start_listening loops should ideally also check self._stop_event
-        # or be cancellable tasks. The current DummyIMAdapter's listen loop checks self.is_connected,
-        # which disconnect() sets to False, and it's also a cancellable task.
-
-# Global agent instance (optional, can be managed within main_async)
-_agent_instance: Optional[Agent] = None
-
-async def main_async():
-    global _agent_instance
-    # Initialize AppSettings globally first or pass path to Agent for it to init
-    # If AppSettings loads on its own init:
-    # global_settings = AppSettings(config_file_path=DEFAULT_CONFIG_FILE) # This assumes AppSettings can take path
-    # For now, we use the imported global_settings which should be an instance.
-    # If it's not loaded, Agent's setup will load it.
-    
-    _agent_instance = Agent(config_file_path=DEFAULT_CONFIG_FILE)
-    
-    # Setup signal handlers for graceful shutdown
-    if sys.platform != "win32": # Windows has different signal handling
-        signal.signal(signal.SIGINT, _agent_instance._handle_signal)
-        signal.signal(signal.SIGTERM, _agent_instance._handle_signal)
-    else: # Handle Ctrl+C on Windows via a different mechanism if needed, e.g. asyncio.create_server's loop handling
-        try:
-            # This is a common way to allow Ctrl+C to work with asyncio on Windows
-            async def wakeup():
-                while not _agent_instance._stop_event.is_set(): # check agent's stop event
-                    await asyncio.sleep(0.1)
-            asyncio.create_task(wakeup())
-        except Exception as e:
-            loggerinfo(f"Could not set up Windows Ctrl+C handler: {e}")
-
+    # Initial state for the graph invocation
+    initial_state: AgentState = {
+        "raw_im_message": raw_im_message,
+        "conversation_history": [], # Will be populated by process_im_message_node
+        # Other fields will be populated by the first node (process_im_message_node)
+    }
 
     try:
-        await _agent_instance.setup()
-        await _agent_instance.run()
-    except RuntimeError as e: # Catch setup errors specifically if they are critical
-        logger.fatal(f"Agent failed to start due to setup error: {e}", exc_info=True)
-    except asyncio.CancelledError:
-        logger.info("Main task cancelled, shutting down.")
-    except Exception as e:
-        logger.error(f"Unhandled exception in main_async: {e}", exc_info=True)
-    finally:
-        logger.info("Main async function finished. Ensuring final cleanup.")
-        if _agent_instance and _agent_instance._stop_event.is_set(): # If shutdown was triggered
-             await _agent_instance.shutdown_adapters() # Ensure adapters are shut down if not already
-        elif _agent_instance: # If loop exited without stop_event (e.g. all tasks finished naturally)
-             logger.info("Main loop exited without explicit stop signal. Requesting adapter shutdown.")
-             await _agent_instance.shutdown_adapters()
+        # Configure the graph to run with a specific thread_id (e.g., chat_id)
+        # This is crucial for checkpointers and maintaining separate states per conversation.
+        config = {"configurable": {"thread_id": chat_id}}
 
+        # Stream events from the graph invocation
+        # final_state_events = [] # To capture all events if needed
+        # async for event_part in langgraph_app.astream_events(initial_state, config=config, version="v1"):
+        #     # Process events here (e.g., send to event_emitter)
+        #     # logger.debug(f"Graph event: {event_part}")
+        #     # final_state_events.append(event_part)
+        # # The final state is typically the last 'values' in the 'end' event, or needs specific extraction.
+
+        # For now, using ainvoke to get the final state directly for simplicity.
+        # Streaming with astream_events is better for real-time updates to frontend.
+        final_state = await langgraph_app.ainvoke(initial_state, config=config)
+
+        logger.info(f"Graph execution complete for chat_id '{chat_id}'. Final state keys: {final_state.keys()}")
+
+        response_to_user = final_state.get("final_response_to_user")
+        error_to_user = final_state.get("error_message_to_user")
+        platform = final_state.get("platform") # Should be populated by process_im_message_node
+        # chat_id is already known
+
+        if error_to_user: # Prioritize sending explicit error messages
+            logger.error(f"Error message for user in chat_id '{chat_id}': {error_to_user}")
+            if platform and chat_id and platform in active_im_adapters_dict:
+                await active_im_adapters_dict[platform].send_message(chat_id, error_to_user)
+            else:
+                logger.error(f"Could not send error to user: Platform '{platform}' or chat_id '{chat_id}' missing, or adapter not found.")
+        elif response_to_user:
+            logger.info(f"Final response for chat_id '{chat_id}': {response_to_user}")
+            if platform and chat_id and platform in active_im_adapters_dict:
+                await active_im_adapters_dict[platform].send_message(chat_id, response_to_user)
+            else:
+                logger.error(f"Could not send response: Platform '{platform}' or chat_id '{chat_id}' missing, or adapter not found.")
+        else:
+            logger.warning(f"No final_response_to_user or error_message_to_user in final state for chat_id '{chat_id}'. State: {final_state}")
+
+    except Exception as e:
+        logger.error(f"Error during LangGraph app invocation for chat_id '{chat_id}': {e}", exc_info=True)
+        # Attempt to send a generic error message back to the user if possible
+        platform = raw_im_message.get("platform")
+        chat_id_err = raw_im_message.get("chat_id")
+        if platform and chat_id_err and platform in active_im_adapters_dict:
+            try:
+                await active_im_adapters_dict[platform].send_message(chat_id_err, "Sorry, a critical error occurred while processing your request.")
+            except Exception as send_err:
+                logger.error(f"Failed to send critical error message to user {platform}:{chat_id_err}: {send_err}")
+
+
+async def main_async(config_path: str):
+    """
+    Main asynchronous function to initialize and run the agent application.
+    """
+    global langgraph_app, active_im_adapters_dict # To assign to global variables
+
+    # 1. Load Configuration
+    app_settings = AppSettings() # Instantiates with default path or env var logic
+    try:
+        # If AppSettings doesn't load on init, or if a specific path is given:
+        if not app_settings.settings or config_path != DEFAULT_CONFIG_FILE:
+             app_settings.load_config(config_path) # Load specified or ensure default is loaded
+        logger.info(f"Configuration loaded from: {config_path}")
+    except Exception as e:
+        # Use basic logging if setup_logging hasn't run yet
+        logging.basicConfig(level=logging.ERROR)
+        logger.fatal(f"Failed to load configuration from {config_path}: {e}", exc_info=True)
+        return # Critical failure
+
+    # 2. Setup Logging (as early as possible after config is loaded)
+    try:
+        setup_logging(log_level_str=app_settings.log_level)
+        logger.info(f"Logging configured with level: {app_settings.log_level}")
+    except Exception as e:
+        logger.error(f"Error setting up logging: {e}", exc_info=True)
+        # Continue with basic logging if setup fails
+
+    # 3. Initialize Core Components
+    try:
+        logger.info("Initializing LLM client...")
+        llm_config = app_settings.get_llm_config()
+        llm_provider = app_settings.get_config("llm_provider", "DummyLLM")
+        llm_client = await LLMFactory.get_llm_client(llm_provider, llm_config)
+        if not llm_client:
+            raise RuntimeError(f"Failed to initialize LLM client for provider {llm_provider}.")
+        logger.info(f"LLM Client '{type(llm_client).__name__}' initialized.")
+
+        logger.info("Initializing MemoryManager...")
+        memory_config = app_settings.get_config("memory_config", {}) # Get memory specific config
+        # Ensure resolved path for LTM is passed if relative
+        if 'long_term_storage_path' in memory_config and not os.path.isabs(memory_config['long_term_storage_path']):
+            memory_config['long_term_storage_path'] = os.path.join(PROJECT_ROOT, memory_config['long_term_storage_path'])
+
+        memory_manager = MemoryManager(config=memory_config)
+        if not await memory_manager.initialize():
+             raise RuntimeError("Failed to initialize MemoryManager.")
+        logger.info("MemoryManager initialized.")
+
+        # Initialize MCP Client (example: taking the first configured general MCP connection)
+        # In a multi-MCP setup, the graph might need access to a factory or multiple clients.
+        # For now, assume one primary MCP handler is passed to the graph if needed by specific nodes.
+        # The current graph nodes don't directly take mcp_client at construction.
+        # Tool execution nodes would fetch it from a shared context or a factory.
+        # For now, we just initialize it to ensure it's ready if any part of the system needs it.
+        mcp_connections = app_settings.get_config("mcp_connections", [])
+        if mcp_connections:
+            # Example: Initialize the first "general" type MCP connection
+            general_mcp_config = next((c for c in mcp_connections if c.get("type") == "general"), None)
+            if general_mcp_config:
+                logger.info(f"Initializing general MCP client for connection: {general_mcp_config.get('name')}")
+                # Ensure paths in client_config are resolved relative to project root if not absolute
+                client_cfg = general_mcp_config.get("client_config", {})
+                for path_key in ["mcp_servers_config_path", "whitelist_file_path"]:
+                    if path_key in client_cfg and not os.path.isabs(client_cfg[path_key]):
+                        client_cfg[path_key] = os.path.join(PROJECT_ROOT, client_cfg[path_key])
+
+                mcp_client = await MCPFactory.get_mcp_client(general_mcp_config)
+                if mcp_client:
+                    logger.info(f"MCP Client '{type(mcp_client).__name__}' for '{general_mcp_config.get('name')}' initialized.")
+                    # Make it available to FastAPI if needed (e.g. for a list services endpoint)
+                    fastapi_app.state.mcp_client = mcp_client
+                else:
+                    logger.warning(f"Failed to initialize MCP client for '{general_mcp_config.get('name')}'.")
+
+        # Initialize RPA Factory (RPA clients are typically platform-specific and might be lazy-loaded by nodes)
+        # rpa_factory = RPAFactory() # If RPAFactory needs init, do it here.
+        # logger.info("RPAFactory available.")
+        # fastapi_app.state.rpa_factory = rpa_factory # Make available to API if needed
+
+    except RuntimeError as e:
+        logger.fatal(f"Failed to initialize a core component: {e}", exc_info=True)
+        return # Critical failure
+
+    # 4. Create and Compile LangGraph App
+    logger.info("Creating and compiling LangGraph application...")
+    try:
+        agent_graph_definition = create_agent_graph(llm_client=llm_client, memory_manager=memory_manager)
+        # TODO: Add checkpointer here for persistence when ready
+        # from langgraph.checkpoint.sqlite import SqliteSaver
+        # memory_for_graph = SqliteSaver.from_conn_string(":memory:") # In-memory example
+        # langgraph_app = agent_graph_definition.compile(checkpointer=memory_for_graph)
+        langgraph_app = agent_graph_definition.compile()
+        logger.info("LangGraph application compiled successfully.")
+    except Exception as e:
+        logger.fatal(f"Failed to create or compile LangGraph application: {e}", exc_info=True)
+        return # Critical failure
+
+    # Make langgraph_app and memory_manager available to FastAPI app state for REST endpoint
+    fastapi_app.state.langgraph_app = langgraph_app
+    fastapi_app.state.memory_manager = memory_manager
+    fastapi_app.state.app_settings = app_settings # For general config access in API if needed
+
+    # 5. Initialize and Start IM Adapters (if configured)
+    im_adapter_tasks = []
+    im_settings = app_settings.get_im_settings()
+    if im_settings: # Check if im_settings itself is present and not empty
+        logger.info("Initializing IM adapters...")
+        # The get_im_adapters function in im_interface.im.__init__ now expects AppSettings directly
+        # and then it accesses im_settings internally.
+        # We need to pass the app_settings object.
+        im_adapters_list = await get_im_adapters(app_settings, im_message_handler)
+
+        active_im_adapters_dict.update({adapter.platform_name: adapter for adapter in im_adapters_list})
+
+        for platform, adapter in active_im_adapters_dict.items():
+            logger.info(f"Attempting to connect and start listening for IM platform: {platform}")
+            # Using a wrapper to handle connection before listening
+            async def connect_and_listen_wrapper(adapter_instance: IMInterface):
+                try:
+                    if await adapter_instance.connect():
+                        logger.info(f"IM Adapter {adapter_instance.platform_name} connected.")
+                        await adapter_instance.start_listening()
+                    else:
+                        logger.error(f"IM Adapter {adapter_instance.platform_name} failed to connect.")
+                except Exception as e_adapter:
+                    logger.error(f"Error with IM Adapter {adapter_instance.platform_name}: {e_adapter}", exc_info=True)
+                finally:
+                    logger.info(f"IM Adapter {adapter_instance.platform_name} listening stopped or failed to start.")
+
+            im_adapter_tasks.append(asyncio.create_task(connect_and_listen_wrapper(adapter)))
+        if im_adapter_tasks:
+            logger.info(f"{len(im_adapter_tasks)} IM adapter tasks created.")
+        else:
+            logger.info("No IM adapters enabled or configured to run.")
+    else:
+        logger.info("No IM settings found in configuration. IM adapters will not be started.")
+
+    # 6. Setup and Start FastAPI/Uvicorn Server
+    server_host = app_settings.get_config("server_host", "0.0.0.0")
+    server_port = app_settings.get_config("server_port", 8000)
+    debug_mode = app_settings.get_config("debug_mode", False)
+
+    uvicorn_config = uvicorn.Config(
+        app=fastapi_app, # Use the imported app
+        host=server_host,
+        port=server_port,
+        log_level=app_settings.log_level.lower(),
+        reload=debug_mode
+    )
+    server = uvicorn.Server(uvicorn_config)
+
+    logger.info(f"Starting Uvicorn server on {server_host}:{server_port}")
+    api_server_task = asyncio.create_task(server.serve())
+    im_adapter_tasks.append(api_server_task) # Add server task to list for graceful shutdown
+
+    # 7. Run until shutdown signal
+    await shutdown_event.wait() # Wait for signal handler to set this event
+
+    # 8. Graceful Shutdown
+    logger.info("Initiating graceful shutdown...")
+    if hasattr(server, 'should_exit') and not server.should_exit: # Check if uvicorn server has this attribute
+        server.should_exit = True # Tell Uvicorn to stop accepting new connections
+        # await server.shutdown() # This might be needed for some uvicorn versions or if server.serve() is not awaited directly
+
+    # Gracefully stop IM adapters
+    for platform, adapter in active_im_adapters_dict.items():
+        if hasattr(adapter, 'is_connected') and adapter.is_connected:
+            logger.info(f"Disconnecting IM adapter: {platform}")
+            await adapter.disconnect()
+
+    # Cancel all running tasks (IM adapters, API server)
+    for task in im_adapter_tasks:
+        if not task.done():
+            task.cancel()
+
+    # Wait for tasks to complete cancellation
+    await asyncio.gather(*im_adapter_tasks, return_exceptions=True)
+    logger.info("All tasks (IM adapters, API server) have been processed for shutdown.")
+
+
+def handle_shutdown_signal(sig, frame):
+    logger.info(f"Received signal {sig}. Setting shutdown event.")
+    # This function should only call async-safe functions if called from an asyncio loop's thread.
+    # Setting an asyncio.Event is generally safe.
+    asyncio.create_task(set_shutdown_event())
+
+async def set_shutdown_event():
+    shutdown_event.set()
 
 if __name__ == "__main__":
-    # Ensure the asyncio event loop is appropriate for the OS
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    
+    parser = argparse.ArgumentParser(description="IM-Agent: macOS Desktop Automation Smart Agent")
+    parser.add_argument(
+        "--config_path",
+        type=str,
+        default=DEFAULT_CONFIG_FILE,
+        help=f"Path to the agent's configuration file (default: {DEFAULT_CONFIG_FILE})",
+    )
+    args = parser.parse_args()
+
+    # Setup signal handlers for graceful shutdown
+    # For Windows, SIGINT (Ctrl+C) is usually handled by KeyboardInterrupt in asyncio.run
+    if sys.platform != "win32":
+        signal.signal(signal.SIGINT, handle_shutdown_signal)
+        signal.signal(signal.SIGTERM, handle_shutdown_signal)
+
     try:
-        asyncio.run(main_async())
-    except KeyboardInterrupt: # This might catch Ctrl+C if signal handlers didn't fully manage it
-        logger.info("KeyboardInterrupt caught in __main__. Agent shutting down.")
-        # If _agent_instance exists and has shutdown logic, try to run it.
-        # This is tricky because the loop is already stopping.
-        # The signal handler and _stop_event are preferred.
-        if _agent_instance and not _agent_instance._stop_event.is_set():
-            logger.info("Setting stop event from __main__ KeyboardInterrupt.")
-            _agent_instance._stop_event.set()
-            # Try to run shutdown if loop isn't running anymore
-            # This is best-effort at this point.
-            # asyncio.run(agent_instance.shutdown_adapters()) # Careful: new loop for shutdown
+        asyncio.run(main_async(args.config_path))
+    except KeyboardInterrupt: # Catches Ctrl+C, especially on Windows
+        logger.info("KeyboardInterrupt received. Initiating shutdown...")
+        # If the loop is already stopping/stopped, this might not do much more,
+        # but if it's caught before shutdown_event is set, this helps.
+        if not shutdown_event.is_set():
+             shutdown_event.set() # Trigger graceful shutdown if not already triggered
+             # Re-running main_async or parts of it here is problematic.
+             # The shutdown_event should be sufficient for the running main_async to handle cleanup.
+    except Exception as e:
+        logger.fatal(f"Unhandled exception in __main__: {e}", exc_info=True)
     finally:
-        logger.info("IM-Agent application terminated.")
+        logger.info("IM-Agent application has shut down.")

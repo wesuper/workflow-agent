@@ -43,7 +43,7 @@ class AbstractRPAClient(ABC):
         This element object might be used by other more specific RPA methods if needed.
         """
         pass
-            
+
     @abstractmethod
     async def get_text(self, locator: ElementLocator, timeout: int = 10) -> Optional[str]:
         """
@@ -74,7 +74,7 @@ class AbstractRPAClient(ABC):
         Returns a tuple: (success: bool, output_message: str).
         """
         pass
-    
+
     @abstractmethod
     async def scroll(self, direction: str, locator: Optional[ElementLocator] = None, distance_percentage: float = 0.5) -> bool:
         """Scrolls the screen or a specific scrollable element."""

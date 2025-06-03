@@ -88,7 +88,7 @@ The IM-Agent is structured around several key layers, with LangGraph planned for
 
 3.  **Install Dependencies:**
     ```bash
-    uv sync pyproject.toml 
+    uv sync pyproject.toml
     # Alternatively, if a requirements.txt is maintained:
     # uv pip install -r requirements.txt
     ```

@@ -1,6 +1,6 @@
 # __init__.py for LLM tools module
 import logging # Keep logging if used by __main__ or other module-level code
-import os 
+import os
 import sys # Added sys for if __name__ == "__main__" example
 
 from .base import AbstractLLMClient
@@ -47,7 +47,7 @@ if __name__ == '__main__':
         # if you want to test successful initialization.
         os.environ["TEST_OPENAI_KEY_FACTORY"] = "dummy_placeholder_key" # Placeholder
         openai_config = {
-            "api_key_env_var": "TEST_OPENAI_KEY_FACTORY", 
+            "api_key_env_var": "TEST_OPENAI_KEY_FACTORY",
             "model_name": "gpt-3.5-turbo"
         }
         openai_client = await LLMFactory.get_llm_client("OpenAI", openai_config)
@@ -65,7 +65,7 @@ if __name__ == '__main__':
             # If init "succeeded" with a bad key, the call itself would fail.
         else:
             logger.warning("Failed to get/initialize OpenAI client from factory (expected with placeholder key).")
-        
+
         # Clean up env var if set for test
         if "TEST_OPENAI_KEY_FACTORY" in os.environ:
             del os.environ["TEST_OPENAI_KEY_FACTORY"]
