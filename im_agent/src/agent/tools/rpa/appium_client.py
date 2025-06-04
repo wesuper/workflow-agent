@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 APPIUM_BY_MAP = {
     "id": By.ID,
     "xpath": By.XPATH,
-    "name": By.NAME, # Accessibility ID for Appium often
-    "accessibility_id": By.ACCESSIBILITY_ID,
+    "name": By.NAME,
+    "accessibility_id": "accessibility id",  # Appium specific locator strategy
     "class_name": By.CLASS_NAME,
     "css_selector": By.CSS_SELECTOR, # For web contexts within apps
     "link_text": By.LINK_TEXT, # For web contexts
     "partial_link_text": By.PARTIAL_LINK_TEXT, # For web contexts
-    "android_uiautomator": By.ANDROID_UIAUTOMATOR, # Android specific
+    "android_uiautomator": "android uiautomator", # Android specific
     # Add iOS specific if needed: By.IOS_PREDICATE_STRING, By.IOS_CLASS_CHAIN
 }
 

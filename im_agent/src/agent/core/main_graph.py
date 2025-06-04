@@ -18,11 +18,11 @@ from .nodes import (
 )
 
 # Corrected import paths for clients and managers
-from ...tools.llm.base import AbstractLLMClient
-from ...memory.manager import MemoryManager
-from ...tools.mcp.base import AbstractMCPClient # Added
-from ...tools.rpa.factory import RPAFactory     # Added
-# from ...api.event_emitter import event_emitter # Not directly used in graph construction
+from agent.tools.llm.base import AbstractLLMClient
+from agent.memory.manager import MemoryManager
+from agent.tools.mcp.base import AbstractMCPClient # Added
+from agent.tools.rpa.factory import RPAFactory     # Added
+# from agent.api.event_emitter import event_emitter # Not directly used in graph construction
 
 logger = logging.getLogger(__name__)
 
