@@ -1,62 +1,103 @@
-"use client";
-
-import ChatWindow from "@/components/comms/ChatWindow";
-import { useEventStore, AgentEvent } from "@/hooks/useEventStore"; // Import store and event type
-import { useEffect } from "react"; // For potential client-side only rendering of store data
+import Image from "next/image";
 
 export default function Home() {
-  const events = useEventStore((state) => state.events);
-  const isConnected = useEventStore((state) => state.isConnected);
-  const clearEvents = useEventStore((state) => state.clearEvents);
-
-  // This is to ensure events are only rendered on the client side after hydration
-  const [isClient, setIsClient] = React.useState(false);
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start p-4 md:p-8 lg:p-12 bg-mech-primary space-y-4">
-      <div className="w-full max-w-4xl text-center mb-4">
-        <p className={`text-sm p-2 rounded-md ${isConnected ? 'bg-green-500/30 text-green-300' : 'bg-red-500/30 text-red-300'}`}>
-          WebSocket Connected: {isConnected ? 'Yes' : 'No'}
-        </p>
-      </div>
+    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
+      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+        <Image
+          className="dark:invert"
+          src="/next.svg"
+          alt="Next.js logo"
+          width={180}
+          height={38}
+          priority
+        />
+        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
+          <li className="mb-2 tracking-[-.01em]">
+            Get started by editing{" "}
+            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
+              src/app/page.tsx
+            </code>
+            .
+          </li>
+          <li className="tracking-[-.01em]">
+            Save and see your changes instantly.
+          </li>
+        </ol>
 
-      <ChatWindow />
-
-      {isClient && ( // Only render event log on client side
-        <div className="w-full max-w-4xl mt-6 p-4 bg-mech-secondary border border-mech-accent/30 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-semibold text-mech-text-light">Agent Event Log (Last {events.length} events):</h3>
-            <button
-              onClick={clearEvents}
-              className="px-3 py-1 text-xs bg-red-600/70 hover:bg-red-500/70 text-white rounded-md transition-colors"
-            >
-              Clear Log
-            </button>
-          </div>
-          <pre
-            className="max-h-48 overflow-y-auto bg-mech-primary/50 p-3 rounded text-xs text-mech-text-dark scrollbar-thin scrollbar-thumb-mech-accent/50 scrollbar-track-mech-primary"
-            style={{ scrollbarWidth: 'thin' }} // For Firefox
+        <div className="flex gap-4 items-center flex-col sm:flex-row">
+          <a
+            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
+            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            {events.length === 0 && <p>No events yet...</p>}
-            {events.map((e) => (
-              <div key={e.id} className="py-1 border-b border-mech-accent/10 last:border-b-0">
-                <span className="font-semibold text-mech-accent/80">{e.type}</span>
-                <span className="text-mech-text-dark/70 ml-2 text-[0.7rem]">({new Date(e.timestamp).toLocaleTimeString()})</span>
-                {e.chat_id && <span className="text-blue-400/70 ml-2 text-[0.7rem]">Chat: {e.chat_id}</span>}
-                <div className="pl-2 text-mech-text-dark/90 text-[0.75rem] whitespace-pre-wrap break-all">
-                  {JSON.stringify(e.data, null, 2)}
-                </div>
-              </div>
-            ))}
-          </pre>
+            <Image
+              className="dark:invert"
+              src="/vercel.svg"
+              alt="Vercel logomark"
+              width={20}
+              height={20}
+            />
+            Deploy now
+          </a>
+          <a
+            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
+            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Read our docs
+          </a>
         </div>
-      )}
-    </main>
+      </main>
+      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
+        <a
+          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
+          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            aria-hidden
+            src="/file.svg"
+            alt="File icon"
+            width={16}
+            height={16}
+          />
+          Learn
+        </a>
+        <a
+          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
+          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            aria-hidden
+            src="/window.svg"
+            alt="Window icon"
+            width={16}
+            height={16}
+          />
+          Examples
+        </a>
+        <a
+          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
+          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            aria-hidden
+            src="/globe.svg"
+            alt="Globe icon"
+            width={16}
+            height={16}
+          />
+          Go to nextjs.org →
+        </a>
+      </footer>
+    </div>
   );
 }
-
-// Added React to imports for useState/useEffect
-import React from 'react';
