@@ -173,4 +173,3 @@ dummy_automator_map.json
 
 # uv cache/state (if applicable and local)
 .uv_cache/
-uv.lock

@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional # Added Optional
 
 from ..state import AgentState
 # Corrected import paths assuming 'tools' is a sibling of 'core' under 'agent'
-from agent.tools.llm.base import AbstractLLMClient
+from ...tools.llm.base import AbstractLLMClient
 from ...api.event_emitter import event_emitter
 
 logger = logging.getLogger(__name__)

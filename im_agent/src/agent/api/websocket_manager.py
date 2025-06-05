@@ -1,7 +1,7 @@
 import asyncio
 import json
 from fastapi import WebSocket, WebSocketDisconnect
-from typing import List, Dict, Any, Set, Optional # Added Optional for type hints
+from typing import List, Dict, Any, Set # Added Set for more efficient connection tracking if needed
 import logging
 import datetime # For timestamping events
 
